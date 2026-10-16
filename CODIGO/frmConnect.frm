@@ -463,6 +463,13 @@ End Sub
                         frmCrearPersonaje.lstGenero.ListIndex = frmCrearPersonaje.lstGenero.ListIndex - 1
                     End If
                 End If
+                ' Hogar inicial (plan 15.001 D3f: vb6-final #923 removed these clicks)
+                If x > 416 And x < 433 And y > 323 And y < 338 Then
+                    Call Rotacion_boton_adelante_ciudades
+                End If
+                If x > 297 And x < 314 And y > 321 And y < 340 Then
+                    Call Rotacion_boton_atras_ciudades
+                End If
                 If x >= 289 And x < 289 + 160 And y >= 525 And y < 525 + 37 Then 'Boton > Volver
                     Call ao20audio.PlayWav(SND_CLICK)
                     AlphaNiebla = 25
@@ -757,6 +764,13 @@ Private Sub render_MouseUp(Button As Integer, Shift As Integer, x As Single, y A
 
             End If
             
+            ' Hogar inicial (plan 15.001 D3f: vb6-final #923 removed these clicks)
+            If x > 416 And x < 433 And y > 323 And y < 338 Then
+                Call Rotacion_boton_adelante_ciudades
+            End If
+            If x > 297 And x < 314 And y > 321 And y < 340 Then
+                Call Rotacion_boton_atras_ciudades
+            End If
             If x >= 289 And x < 289 + 160 And y >= 525 And y < 525 + 37 Then 'Boton > Volver
                 Call ao20audio.PlayWav(SND_CLICK)
                 'UserMap = 323
