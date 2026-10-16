@@ -1059,12 +1059,15 @@ Private Sub InicializarNombres()
     ListaRazasEs.Add JsonLanguage.Item("MENSAJE_RAZA_ENANO"), "Enano"
     ListaRazasEs.Add JsonLanguage.Item("MENSAJE_RAZA_ORCO"), "Orco"
     ' Ciudades ofrecidas al crear personaje (decision del dueno 2026-08-07: salio
-    ' Banderbill, entro Forgat). El indice es de PRESENTACION; el id real que viaja al
-    ' server sale de CiudadesOfrecidas, que se mantiene en paralelo.
+    ' Banderbill, entro Forgat; plan 15.001 D3f: las 7 del oficial en vivo). El indice
+    ' es de PRESENTACION; el id real que viaja al server sale de CiudadesOfrecidas.
     ListaCiudades(1) = "Ullathorpe": CiudadesOfrecidas(1) = eCiudad.cUllathorpe
     ListaCiudades(2) = "Nix":        CiudadesOfrecidas(2) = eCiudad.cNix
     ListaCiudades(3) = "Arghal":     CiudadesOfrecidas(3) = eCiudad.cArghal
     ListaCiudades(4) = "Forgat":     CiudadesOfrecidas(4) = eCiudad.cForgat
+    ListaCiudades(5) = "Eldoria":    CiudadesOfrecidas(5) = eCiudad.cEldoria
+    ListaCiudades(6) = "Penthar":    CiudadesOfrecidas(6) = eCiudad.cPenthar
+    ListaCiudades(7) = "Morgrim":    CiudadesOfrecidas(7) = eCiudad.cMorgrim
     ListaClases(eClass.Mage) = JsonLanguage.Item("MENSAJE_CLASE_MAGO")
     ListaClases(eClass.Cleric) = JsonLanguage.Item("MENSAJE_CLASE_CLERIGO")
     ListaClases(eClass.Warrior) = JsonLanguage.Item("MENSAJE_CLASE_GUERRERO")

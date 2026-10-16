@@ -695,11 +695,13 @@ Sub IniciarCrearPj()
         frmCrearPersonaje.lstRaza.AddItem ListaRazas(i)
     Next i
     frmCrearPersonaje.lstRaza.ListIndex = 0
+    ' Plan 15.001 D3f: the 7 cities of the live official game. The vb6-final client (#923)
+    ' forced Forgat here; that effect is discarded on purpose.
     frmCrearPersonaje.lstHogar.Clear
-    frmCrearPersonaje.lstHogar.AddItem ListaCiudades(eCiudad.cForgat)
+    For i = LBound(ListaCiudades()) To UBound(ListaCiudades())
+        frmCrearPersonaje.lstHogar.AddItem ListaCiudades(i)
+    Next i
     frmCrearPersonaje.lstHogar.ListIndex = 0
-    frmCrearPersonaje.lstHogar.enabled = False
-    UserStats.Hogar = CHARACTER_CREATION_HOME_FORGAT
     frmCrearPersonaje.lstProfesion.Clear
     For i = LBound(ListaClases()) To UBound(ListaClases())
         frmCrearPersonaje.lstProfesion.AddItem ListaClases(i)
