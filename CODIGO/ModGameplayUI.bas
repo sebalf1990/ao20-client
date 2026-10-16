@@ -38,6 +38,9 @@ Private Declare Function CreateRectRgn Lib "gdi32" (ByVal x1 As Long, ByVal y1 A
 Private Declare Function DeleteObject Lib "gdi32" (ByVal hObject As Long) As Long
 Private Declare Function SetWindowRgn Lib "user32" (ByVal hWnd As Long, ByVal hRgn As Long, ByVal bRedraw As Long) As Long
 
+Global G_LastSelectedSlot As Integer
+Global G_LasSelectedObjIndex As Integer
+
 Public Sub SetupGameplayUI()
     frmMain.shapexy.Left = 1200
     frmMain.shapexy.Top = 1200
@@ -231,13 +234,10 @@ Public Sub OnClick(ByVal MouseButton As Long, ByVal MouseShift As Long)
                     End If
                     If SendSkill Then
                         If UsingSkill = eSkill.magia Then
-                            ' Bloquea el envio si el tile objetivo no coincide con la posicion real del cursor.
-                            If CoincideObjetivoHechizoConMouse(tX, tY) Then
-                                If ComprobarPosibleMacro(mouseX, mouseY) Then
-                                    Call WriteWorkLeftClick(tX + RandomNumber(-2, 2), tY + RandomNumber(-2, 2), UsingSkill)
-                                Else
-                                    Call WriteWorkLeftClick(tX, tY, UsingSkill)
-                                End If
+                            If ComprobarPosibleMacro(mouseX, mouseY) Then
+                                Call WriteWorkLeftClick(tX + RandomNumber(-2, 2), tY + RandomNumber(-2, 2), UsingSkill)
+                            Else
+                                Call WriteWorkLeftClick(tX, tY, UsingSkill)
                             End If
                         Else
                             Call WriteWorkLeftClick(tX, tY, UsingSkill)
@@ -469,6 +469,8 @@ End Sub
 Public Sub UserOrEquipItem(ByVal Slot As Integer, ByVal Equipped As Boolean, ByVal ObjIndex As Integer)
     Dim ObjType As Byte
     ObjType = ObjData(ObjIndex).ObjType
+    G_LastSelectedSlot = Slot
+    G_LasSelectedObjIndex = ObjIndex
     Select Case ObjType
         Case eObjType.otArmadura, eObjType.otESCUDO, eObjType.otmagicos, eObjType.otFlechas, eObjType.otCASCO, eObjType.otAnillos, eObjType.otManchas
             If Not Equipped Then
@@ -498,6 +500,10 @@ Public Sub UserOrEquipItem(ByVal Slot As Integer, ByVal Equipped As Boolean, ByV
             If Not Equipped Then
                 Call WriteEquipItem(Slot)
             End If
+        Case eObjType.otCollectibleCard
+            frmCollectibleCard.visible = True
+        Case eObjType.otCastleSpawner
+            Call WriteUseItem(Slot)
         Case Else
             Call WriteUseItem(Slot)
     End Select

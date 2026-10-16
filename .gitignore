@@ -44,3 +44,4 @@ remotes.ini
 
 # Estampilla que dejan build_tmp.bat / build_client.bat en cada compilacion
 build-stamp.txt
+AGENTS.md

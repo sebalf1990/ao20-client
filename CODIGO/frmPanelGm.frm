@@ -51,14 +51,6 @@ Begin VB.Form frmPanelgm
       TabIndex        =   75
       Top             =   1440
       Width           =   2295
-      Begin VB.TextBox txtSegundos 
-         Height          =   285
-         Left            =   1680
-         TabIndex        =   86
-         Text            =   "1.5"
-         Top             =   720
-         Width           =   375
-      End
       Begin VB.CheckBox chkCoordenadas 
          BackColor       =   &H80000007&
          Caption         =   "Coordenadas"
@@ -250,6 +242,89 @@ Begin VB.Form frmPanelgm
          Top             =   2880
          Width           =   255
       End
+      Begin VB.TextBox txtTiempoCarcelMacros 
+         Height          =   285
+         Left            =   240
+         TabIndex        =   106
+         Text            =   "30"
+         Top             =   3240
+         Width           =   495
+      End
+      Begin VB.CheckBox chkPaquetesCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   97
+         Top             =   1680
+         Width           =   255
+      End
+      Begin VB.CheckBox chkOcultarCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   99
+         Top             =   720
+         Width           =   255
+      End
+      Begin VB.CheckBox chkUsarItemCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   100
+         Top             =   960
+         Width           =   255
+      End
+      Begin VB.CheckBox chkLeftClickCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   101
+         Top             =   1200
+         Width           =   255
+      End
+      Begin VB.CheckBox chkCoordenadasCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   102
+         Top             =   2160
+         Width           =   255
+      End
+      Begin VB.CheckBox chkClicksCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   103
+         Top             =   2400
+         Width           =   255
+      End
+      Begin VB.CheckBox chkInasistidoCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   104
+         Top             =   2640
+         Width           =   255
+      End
+      Begin VB.CheckBox chkCarteleoCarcel 
+         BackColor       =   &H80000007&
+         Height          =   255
+         Left            =   1800
+         TabIndex        =   105
+         Top             =   2880
+         Width           =   255
+      End
+      Begin VB.Label lblCarcelSel 
+         AutoSize        =   -1  'True
+         BackStyle       =   0  'Transparent
+         Caption         =   "Carcel"
+         ForeColor       =   &H80000005&
+         Height          =   195
+         Left            =   1680
+         TabIndex        =   98
+         Top             =   240
+         Width           =   495
+      End
       Begin VB.Label lblIraUser 
          AutoSize        =   -1  'True
          BackStyle       =   0  'Transparent
@@ -274,6 +349,17 @@ Begin VB.Form frmPanelgm
          TabIndex        =   95
          Top             =   2880
          Width           =   930
+      End
+      Begin VB.Label lblTiempoCarcelMacros 
+         AutoSize        =   -1  'True
+         BackStyle       =   0  'Transparent
+         Caption         =   "Min carcel"
+         ForeColor       =   &H80000005&
+         Height          =   195
+         Left            =   840
+         TabIndex        =   107
+         Top             =   3240
+         Width           =   870
       End
       Begin VB.Label lblInasistido 
          AutoSize        =   -1  'True
@@ -1167,6 +1253,26 @@ Begin VB.Form frmPanelgm
       TabIndex        =   7
       Top             =   600
       Width           =   4560
+   End
+   Begin VB.Label Label5 
+      BackColor       =   &H80000012&
+      Caption         =   "Leer visible"
+      ForeColor       =   &H00FFFFFF&
+      Height          =   255
+      Left            =   5160
+      TabIndex        =   111
+      Top             =   7320
+      Width           =   1335
+   End
+   Begin VB.Label Label4 
+      BackColor       =   &H80000012&
+      Caption         =   "Leer invisibles"
+      ForeColor       =   &H00FFFFFF&
+      Height          =   255
+      Left            =   5160
+      TabIndex        =   110
+      Top             =   7080
+      Width           =   1575
    End
    Begin VB.Label Label1 
       BackColor       =   &H00000000&
@@ -3172,10 +3278,15 @@ End Sub
 
 
 Private Function ObtenerTimestampMacro(ByVal Cadena As String) As String
-    Dim partesTimestamp() As String
+    Dim posicionControl As Long
 
-    partesTimestamp = Split(Cadena, " Control")
-    ObtenerTimestampMacro = Trim$(partesTimestamp(0))
+    posicionControl = InStr(1, Cadena, " Control", vbTextCompare)
+
+    If posicionControl > 1 Then
+        ObtenerTimestampMacro = Trim$(Left$(Cadena, posicionControl - 1))
+    Else
+        ObtenerTimestampMacro = Format$(Now, "yyyymmddhhnnss")
+    End If
 End Function
 
 Private Function DebeAplicarSancionMacroPorTimestamp(ByVal Cadena As String) As Boolean
@@ -3255,7 +3366,7 @@ Public Sub CadenaChat(ByVal chat As String)
             nombre = Trim(nombre)
             If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
             If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(Cadena, "MacroDePaquetes.txt")
-            If frmPanelgm.chkPaquetes.value = 1 Then Call WriteCerraCliente(nombre)
+            Call AplicarSancionMacro(nombre, frmPanelgm.chkPaquetes.value = 1, frmPanelgm.chkPaquetesCarcel.value = 1, Cadena)
         End If
     End If
     ' Divide la cadena en partes utilizando "Control de macro---> El usuario" como separador
@@ -3271,39 +3382,27 @@ Public Sub CadenaChat(ByVal chat As String)
             nombre = Left(nombre, PosicionBarra - 1)
             ' Elimina espacios en blanco al principio y al final del nombre
             nombre = Trim(nombre)
-            ' Declarar TiempoAnterior como Static fuera de la función
-            Static TiempoAnterior As Single
             ' Verificar si la cadena contiene ciertos textos utilizando Select Case
             Select Case True
                 Case InStr(Cadena, "Ocultar") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro de Ocultar ", "MacroOcultar.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkOcultar.value = 1 Then
-                        If frmPanelgm.cboListaUsus.text = nombre Then
-                            ' Obtener el tiempo actual en milisegundos
-                            Dim TiempoActual As Single
-                            TiempoActual = Timer
-                            If TiempoActual - TiempoAnterior < frmPanelgm.txtSegundos Then
-                                If frmPanelgm.chkOcultar = 1 Then Call WriteCerraCliente(nombre)
-                            End If
-                            TiempoAnterior = TiempoActual
-                        End If
-                    End If
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkOcultar.value = 1, frmPanelgm.chkOcultarCarcel.value = 1, Cadena)
                 Case InStr(Cadena, "UseItemU") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro de UsarItem U ", "MacroUseItemU.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkUsarItem.value = 1 Then Call WriteCerraCliente(nombre)
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkUsarItem.value = 1, frmPanelgm.chkUsarItemCarcel.value = 1, Cadena)
                 Case InStr(Cadena, "UseItem") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro de UsarItem ", "MacroUseItem.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkUsarItem.value = 1 Then Call WriteCerraCliente(nombre)
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkUsarItem.value = 1, frmPanelgm.chkUsarItemCarcel.value = 1, Cadena)
                 Case InStr(Cadena, "GuildMessage") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro de GuildMessage ", "MacroGuildMessage.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
                 Case InStr(Cadena, "LeftClick") > 0
                     Resultado = GuardarTextoEnArchivo(nombre & ",Macro de LeftClick ", "MacroLeftClick.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkLeftClick.value = 1 Then Call WriteCerraCliente(nombre)
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkLeftClick.value = 1, frmPanelgm.chkLeftClickCarcel.value = 1, Cadena)
                 Case InStr(Cadena, "ChangeHeading") > 0
                     Resultado = GuardarTextoEnArchivo(nombre & ",Macro de ChangeHeading ", "MacroChangeHeading.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
@@ -3332,19 +3431,19 @@ Public Sub CadenaChat(ByVal chat As String)
                 Case InStr(Cadena, "Macro de Cordenadas") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro de Cordenadas", "MacroCoordenadas.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkCoordenadas.value = 1 Then Call WriteCerraCliente(nombre)
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkCoordenadas.value = 1, frmPanelgm.chkCoordenadasCarcel.value = 1, Cadena)
                 Case InStr(Cadena, ").") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro de click", "MacroDeClick.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkClicks.value = 1 Then Call WriteCerraCliente(nombre)
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkClicks.value = 1, frmPanelgm.chkClicksCarcel.value = 1, Cadena)
                 Case InStr(Cadena, "Macro Inasistido") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro Inasistido", "MacroInasistido.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkInasistido.value = 1 Then Call WriteCerraCliente(nombre)
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkInasistido.value = 1, frmPanelgm.chkInasistidoCarcel.value = 1, Cadena)
                 Case InStr(Cadena, "Macro de Carteleo") > 0
                     If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(nombre & ",Macro de Carteleo", "MacroCarteleo.txt")
                     'Call ParseUserCommand("/MENSAJEINFORMACION " & nombre & "@" & "INFORMACION: Le recordamos que el uso de macros o programas externos está estrictamente prohibido y puede resultar en sanciones.")
-                    If frmPanelgm.chkCarteleo.value = 1 Then Call WriteCerraCliente(nombre)
+                    Call AplicarSancionMacro(nombre, frmPanelgm.chkCarteleo.value = 1, frmPanelgm.chkCarteleoCarcel.value = 1, Cadena)
                 Case Else
                     ' Manejar el caso en el que no hay coincidencias
             End Select
@@ -3375,6 +3474,52 @@ Public Sub CadenaChat(ByVal chat As String)
         End If
     End If
 End Sub
+
+Private Sub AplicarSancionMacro(ByVal nombre As String, ByVal cerrarCliente As Boolean, ByVal mandarCarcel As Boolean, ByVal Cadena As String)
+    Dim tiempoCarcel As Long
+
+    If Not DebeAplicarSancionMacroPorTimestamp(Cadena) Then Exit Sub
+    Call RegistrarTimestampSancionadoMacro(Cadena)
+
+    tiempoCarcel = CLng(val(frmPanelgm.txtTiempoCarcelMacros.Text))
+    If tiempoCarcel <= 0 Then
+        tiempoCarcel = 30
+    ElseIf tiempoCarcel > 600 Then
+        tiempoCarcel = 600
+    End If
+
+    If mandarCarcel Then
+        If Not EstaUsuarioEnMapa66(nombre) Then
+            Call ParseUserCommand("/CARCEL " & nombre & "@Uso de programas externos, Macros o Cheat@" & tiempoCarcel)
+        End If
+    ElseIf cerrarCliente Then
+        Call WriteCerraCliente(nombre)
+    End If
+End Sub
+
+Private Function EstaUsuarioEnMapa66(ByVal nombre As String) As Boolean
+    Dim i As Integer
+    Dim nombreChar As String
+    Dim Pos As Integer
+
+    If UserMap <> 66 Then Exit Function
+
+    For i = 1 To LastChar
+        If charlist(i).active = 1 And charlist(i).EsNpc = False Then
+            Pos = InStr(charlist(i).nombre, "<")
+            If Pos = 0 Then
+                nombreChar = Trim$(charlist(i).nombre)
+            Else
+                nombreChar = Trim$(Left$(charlist(i).nombre, Pos - 2))
+            End If
+
+            If UCase$(nombreChar) = UCase$(Trim$(nombre)) Then
+                EstaUsuarioEnMapa66 = True
+                Exit Function
+            End If
+        End If
+    Next i
+End Function
 
 Function GuardarTextoEnArchivo(ByVal Cadena As String, ByVal nombreArchivo As String) As Boolean
     On Error GoTo ErrorHandler

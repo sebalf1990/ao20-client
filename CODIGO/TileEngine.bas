@@ -166,6 +166,8 @@ Public Enum eTipoUsuario
     aventurero
     heroe
     Legend
+    Noble
+    Emperador
 End Enum
 
 Public Type tMascota
@@ -273,6 +275,7 @@ Public Type Char
     group_index As Integer
     clan_index As Integer
     clan_nivel As Byte
+    clan_alineacion As eClanType
     tipoUsuario As eTipoUsuario
     Team As Byte
     banderaIndex As Byte
@@ -334,7 +337,7 @@ Public Type MapBlock
     FxIndex As Byte
     FxCount As Integer
     FxList() As Grh
-    Graphic(1 To 4) As Grh
+    Graphic(1 To MAP_LAYER_COUNT) As Grh
     charindex As Integer
     ObjGrh As Grh
     GrhBlend As Single
@@ -697,7 +700,7 @@ Sub DoPasosFx(ByVal charindex As Integer)
                 Exit Sub
             ElseIf MapData(.Pos.x, .Pos.y).Graphic(1).GrhIndex > 0 Then
                 Dim FileNum As Long: FileNum = GrhData(MapData(.Pos.x, .Pos.y).Graphic(1).GrhIndex).FileNum
-                TerrenoDePaso = GetTerrenoDePaso(FileNum, MapData(.Pos.x, .Pos.y).Graphic(2).GrhIndex)
+                TerrenoDePaso = GetTerrenoDePaso(FileNum, GetWalkableOverlayGraphic(.Pos.x, .Pos.y))
                 If .Speeding > 1.2 And TerrenoDePaso = CONST_PISO Then
                     TerrenoDePaso = CONST_CABALLO
                 End If
@@ -734,6 +737,20 @@ DoPasosInvi_Err:
     Call RegistrarError(Err.Number, Err.Description, "TileEngine.DoPasosInvi", Erl)
     Resume Next
 End Sub
+
+Public Function GetWalkableOverlayGraphic(ByVal x As Integer, ByVal y As Integer) As Long
+    On Error GoTo GetWalkableOverlayGraphic_Err
+    With MapData(x, y)
+        If .Graphic(3).GrhIndex > 0 Then
+            GetWalkableOverlayGraphic = .Graphic(3).GrhIndex
+        Else
+            GetWalkableOverlayGraphic = .Graphic(2).GrhIndex
+        End If
+    End With
+    Exit Function
+GetWalkableOverlayGraphic_Err:
+    Call RegistrarError(Err.Number, Err.Description, "TileEngine.GetWalkableOverlayGraphic", Erl)
+End Function
 
 Public Function GetTerrenoDePaso(ByVal TerrainFileNum As Integer, ByVal Layer2Grh As Long) As TipoPaso
     On Error GoTo GetTerrenoDePaso_Err
@@ -1025,6 +1042,74 @@ Grh_Render_To_Hdc_Err:
     Resume Next
 End Sub
 
+Public Sub Device_Box_Texture_Render(ByRef texture As Direct3DTexture8, _
+                                     ByVal dest_x As Integer, _
+                                     ByVal dest_y As Integer, _
+                                     ByVal src_width As Integer, _
+                                     ByVal src_height As Integer, _
+                                     ByVal textureWidth As Long, _
+                                     ByVal textureHeight As Long, _
+                                     ByRef Color() As RGBA, _
+                                     ByVal src_x As Integer, _
+                                     ByVal src_y As Integer, _
+                                     Optional ByVal alpha_blend As Boolean = False, _
+                                     Optional ByVal angle As Single = 0)
+    On Error GoTo Device_Box_Texture_Render_Err
+
+    If texture Is Nothing Then Exit Sub
+    If src_width <= 0 Or src_height <= 0 Then Exit Sub
+    If textureWidth <= 0 Or textureHeight <= 0 Then Exit Sub
+
+    Static src_rect      As RECT
+    Static dest_rect     As RECT
+    Static temp_verts(3) As TYPE_VERTEX
+
+    With src_rect
+        .Bottom = src_y + src_height
+        .Left = src_x
+        .Right = src_x + src_width
+        .Top = src_y
+    End With
+
+    With dest_rect
+        .Bottom = dest_y + src_height
+        .Left = dest_x
+        .Right = dest_x + src_width
+        .Top = dest_y
+    End With
+
+    Call Geometry_Create_Box(temp_verts(), _
+                             dest_rect, _
+                             src_rect, _
+                             Color(), _
+                             textureWidth, _
+                             textureHeight, _
+                             angle)
+
+    Call DirectDevice.SetTexture(0, texture)
+
+    If alpha_blend Then
+        Call DirectDevice.SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE)
+        Call DirectDevice.SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE)
+    End If
+
+    Call DirectDevice.DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, temp_verts(0), Len(temp_verts(0)))
+
+    If alpha_blend Then
+        Call DirectDevice.SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA)
+        Call DirectDevice.SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA)
+    End If
+
+    Call DirectDevice.SetRenderState(D3DRS_ALPHABLENDENABLE, 1)
+    Call DirectDevice.SetRenderState(D3DRS_ALPHATESTENABLE, 1)
+
+    Exit Sub
+
+Device_Box_Texture_Render_Err:
+    Call RegistrarError(Err.Number, Err.Description, "engine.Device_Box_Texture_Render", Erl)
+    Resume Next
+End Sub
+
 Public Sub Grh_Render_To_HdcSinBorrar(ByRef pic As PictureBox, _
                                       ByVal GrhIndex As Long, _
                                       ByVal screen_x As Integer, _
@@ -1049,6 +1134,10 @@ Grh_Render_To_HdcSinBorrar_Err:
     Call RegistrarError(Err.Number, Err.Description, "TileEngine.Grh_Render_To_HdcSinBorrar", Erl)
     Resume Next
 End Sub
+
+
+
+
 
 Function HayUserAbajo(ByVal x As Integer, ByVal y As Integer, ByVal GrhIndex As Long) As Boolean
     On Error GoTo HayUserAbajo_Err
@@ -1149,7 +1238,7 @@ End Function
 
 Public Function GetTerrainHeight(x As Byte, y As Byte) As Integer
     With MapData(x, y)
-        Select Case .Graphic(2).GrhIndex
+        Select Case GetWalkableOverlayGraphic(x, y)
             Case 12682
                 GetTerrainHeight = 5
             Case 12683

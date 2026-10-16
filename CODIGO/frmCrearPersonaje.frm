@@ -16,6 +16,7 @@ Begin VB.Form frmCrearPersonaje
    StartUpPosition =   2  'CenterScreen
    Begin VB.ComboBox lstHogar 
       BackColor       =   &H00000000&
+      Enabled         =   0   'False
       BeginProperty Font 
          Name            =   "MS Sans Serif"
          Size            =   8.25
@@ -30,7 +31,9 @@ Begin VB.Form frmCrearPersonaje
       Left            =   13680
       Style           =   2  'Dropdown List
       TabIndex        =   29
+      TabStop         =   0   'False
       Top             =   5640
+      Visible         =   0   'False
       Width           =   1785
    End
    Begin VB.ComboBox cabeza 
