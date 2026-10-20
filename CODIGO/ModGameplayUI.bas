@@ -194,14 +194,33 @@ Public Sub OnClick(ByVal MouseButton As Long, ByVal MouseShift As Long)
                     End If
                     'Splitted because VB isn't lazy!
                     If UsingSkill = Proyectiles Then
-                        If MainTimer.Check(TimersIndex.AttackSpell, False) Then
+                        If ModoHechizos = BloqueoLanzar Then
+                            SendSkill = True
+                            Call MainTimer.Restart(TimersIndex.Attack) ' Prevengo flecha-golpe
+                            Call MainTimer.Restart(TimersIndex.CastSpell) ' flecha-hechizo
+                            Call MainTimer.Restart(TimersIndex.Arrows)
+                        ElseIf MainTimer.Check(TimersIndex.AttackSpell, False) Then
                             If MainTimer.Check(TimersIndex.CastAttack, False) Then
-                                If MainTimer.Check(TimersIndex.Arrows) Then
+                                If MainTimer.Check(TimersIndex.Arrows, False) Then
                                     SendSkill = True
                                     Call MainTimer.Restart(TimersIndex.Attack) ' Prevengo flecha-golpe
                                     Call MainTimer.Restart(TimersIndex.CastSpell) ' flecha-hechizo
+                                    Call MainTimer.Restart(TimersIndex.Arrows)
+                                ElseIf ModoHechizos = SinBloqueo Then
+                                    SendSkill = True
+                                    Call ShowGameplayModeMessage("MENSAJE_LANZAMIENTO_RAPIDO_FLECHAS") ' MENSAJE_LANZAMIENTO_RAPIDO_FLECHAS=No puedes lanzar flechas tan rápido.
+                                Else
+                                    Exit Sub
                                 End If
+                            ElseIf ModoHechizos = SinBloqueo Then
+                                SendSkill = True
+                            Else
+                                Exit Sub
                             End If
+                        ElseIf ModoHechizos = SinBloqueo Then
+                            SendSkill = True
+                        Else
+                            Exit Sub
                         End If
                     End If
                     'Splitted because VB isn't lazy!
@@ -450,17 +469,58 @@ Public Function IsItemSelected() As Boolean
     IsItemSelected = frmMain.Inventario.IsItemSelected
 End Function
 
-Public Sub UseItemKey()
-    If frmMain.Inventario.IsItemSelected Then
-        Call WriteUseItemU(frmMain.Inventario.SelectedItem)
+Private Function IsProjectileTargetReady() As Boolean
+    If Not MainTimer.Check(TimersIndex.AttackSpell, False) Then Exit Function
+    If Not MainTimer.Check(TimersIndex.CastAttack, False) Then Exit Function
+    If Not MainTimer.Check(TimersIndex.Arrows, False) Then Exit Function
+    IsProjectileTargetReady = True
+End Function
+
+Private Function IsEquippedProjectileSlot(ByVal Slot As Integer) As Boolean
+    Dim objIndex As Integer
+    If Slot <= 0 Then Exit Function
+    If Not frmMain.Inventario.Equipped(Slot) Then Exit Function
+    objIndex = frmMain.Inventario.ObjIndex(Slot)
+    If objIndex <= 0 Then Exit Function
+    If ObjData(objIndex).ObjType <> eObjType.otWeapon Then Exit Function
+    IsEquippedProjectileSlot = (ObjData(objIndex).proyectil = 1)
+End Function
+
+Private Sub RequestProjectileTarget(ByVal Slot As Byte, ByVal UseItemWithU As Boolean)
+    If UsingSkill = Proyectiles Then Exit Sub
+    If ModoHechizos = BloqueoLanzar Then
+        If Not IsProjectileTargetReady() Then Exit Sub
+    End If
+    If UseItemWithU Then
+        Call WriteUseItemU(Slot, True)
+    Else
+        Call WriteUseItem(Slot, True)
     End If
 End Sub
 
-Public Sub UserItemClick()
+Private Sub ShowGameplayModeMessage(ByVal MessageKey As String)
+    With FontTypes(FontTypeNames.FONTTYPE_TALK)
+        Call ShowConsoleMsg(JsonLanguage.Item(MessageKey), .red, .green, .blue, .bold, .italic)
+    End With
+End Sub
+
+Public Sub UseItemKey()
+    Dim Slot As Byte
+    If frmMain.Inventario.IsItemSelected Then
+        Slot = frmMain.Inventario.SelectedItem
+        If IsEquippedProjectileSlot(Slot) Then
+            Call RequestProjectileTarget(Slot, True)
+        Else
+            Call WriteUseItemU(Slot)
+        End If
+    End If
+End Sub
+
+Public Sub UserItemClick(Optional ByVal DisableMacro As Boolean = True)
     If frmCarp.visible Or frmHerrero.visible Or frmComerciar.visible Or frmBancoObj.visible Then Exit Sub
     If pausa Then Exit Sub
     If UserMeditar Then Exit Sub
-    If frmMain.macrotrabajo.enabled Then frmMain.DesactivarMacroTrabajo
+    If DisableMacro And frmMain.macrotrabajo.enabled Then frmMain.DesactivarMacroTrabajo
     If Not IsItemSelected Then Exit Sub
     Call UserOrEquipItem(frmMain.Inventario.SelectedItem, frmMain.Inventario.Equipped(frmMain.Inventario.SelectedItem), frmMain.Inventario.ObjIndex( _
             frmMain.Inventario.SelectedItem))
@@ -480,7 +540,7 @@ Public Sub UserOrEquipItem(ByVal Slot As Integer, ByVal Equipped As Boolean, ByV
             End If
         Case eObjType.otWeapon
             If ObjData(ObjIndex).proyectil = 1 And Equipped Then
-                Call WriteUseItem(Slot)
+                Call RequestProjectileTarget(Slot, False)
             Else
                 If Not Equipped Then
                     Call WriteEquipItem(Slot)
