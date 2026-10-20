@@ -940,6 +940,7 @@ Function LegalPos(ByVal x As Integer, ByVal y As Integer, ByVal Heading As E_Hea
         ' minas); con el toggle apagado llega en cero y rige la clase legacy.
         If UserProfessions(eSkill.Mineria) = 0 And Not UserStats.Clase = Trabajador Then Exit Function
     End If
+    If MapData(x, y).Trigger = eTrigger.BLOQ15 Then Exit Function
     If UserNadando And MapData(x, y).Trigger = DETALLEAGUA Then
         LegalPos = True
         Exit Function

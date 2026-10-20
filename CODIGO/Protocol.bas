@@ -3046,6 +3046,14 @@ End Sub
 Private Sub HandleUpdateGroupInfo()
     On Error GoTo HandleUpdateGroupInfo_Err
     Group.GroupSize = Reader.ReadInt8
+
+    ' Limpiar el array cuando el grupo se disuelve o tiene solo el líder
+    If Group.GroupSize <= 1 Then
+        Erase Group.GroupMembers
+        Call UpdateRenderArea
+        Exit Sub
+    End If
+
     Dim i As Integer
     If Group.GroupSize > 1 Then
         ReDim Group.GroupMembers(Group.GroupSize) As t_GroupEntry
@@ -4731,8 +4739,10 @@ Private Sub HandleShowSOSForm()
         Consulta = ReadField(2, sosList(i), Asc("Ø"))
         TipoDeConsulta = ReadField(3, sosList(i), Asc("Ø"))
         FechaHoraDeConsulta = ReadField(4, sosList(i), Asc("Ø"))
-        frmPanelgm.List1.AddItem nombre & "(" & TipoDeConsulta & ") - " & format(FechaHoraDeConsulta, "dd/MM/yyyy hh:mm AM/PM")
-        frmPanelgm.List2.AddItem Consulta
+        If TipoDeConsulta = "Consulta regular" Or charlist(UserCharIndex).priv <> 2 Then
+            frmPanelgm.List1.AddItem nombre & "(" & TipoDeConsulta & ") - " & format(FechaHoraDeConsulta, "dd/MM/yyyy hh:mm AM/PM")
+            frmPanelgm.List2.AddItem Consulta
+        End If
     Next i
     Exit Sub
 errhandler:
@@ -5809,7 +5819,6 @@ Public Sub HandlePrivilegios()
         frmMain.createObj.visible = True
         frmMain.btnInvisible.visible = True
         frmMain.btnSpawn.visible = True
-        frmMain.onlines.visible = True
 #If DEBUGGING = 1 Then
         Call SetMask(FeatureToggles, eShowGmDebugData)
 #End If
@@ -5818,6 +5827,10 @@ Public Sub HandlePrivilegios()
         frmMain.createObj.visible = False
         frmMain.btnInvisible.visible = False
         frmMain.btnSpawn.visible = False
+    End If
+    If EsGM And charlist(UserCharIndex).priv <> 2 Then
+        frmMain.onlines.visible = True
+    Else
         frmMain.onlines.visible = False
     End If
     Exit Sub
