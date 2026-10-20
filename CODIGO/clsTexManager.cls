@@ -41,7 +41,8 @@ Private Const HASH_TABLE_SIZE As Long = 1024   ' Power of two preferred (fast AN
 ' Entry & bucket layout
 '======================
 Private Type SURFACE_ENTRY
-    filename        As Long
+    filename        As String
+    cacheKey        As Long
     UltimoAcceso    As Long
     texture_width   As Long
     texture_height  As Long
@@ -125,7 +126,8 @@ Private Function BucketIndex(ByVal key As Long) As Long
 End Function
 
 Private Sub EvictEntry(ByVal bucket As Long, ByVal idx As Long)
-    Dim sz As Long, id As Long
+    Dim sz As Long
+    Dim id As String
     Dim k  As Long
     With TexList(bucket).SurfaceEntry(idx)
         id = .filename
@@ -133,7 +135,7 @@ Private Sub EvictEntry(ByVal bucket As Long, ByVal idx As Long)
         On Error Resume Next
         Set .Texture = Nothing
         On Error GoTo 0
-        .filename = 0
+        .filename = vbNullString
         .texture_width = 0
         .texture_height = 0
         .size = 0
@@ -316,6 +318,102 @@ LoadTexture_ErrHandler:
 End Function
 
 '======================
+ ' Public: get-or-load interface texture by filename (case-insensitive)
+ ' PNG when Compresion=1, BMP when Compresion=0
+'======================
+Public Function GetInterfaceTexture(ByVal filename As String, ByRef textwidth As Long, ByRef textheight As Long) As Direct3DTexture8
+    On Error GoTo errhandler
+    Debug.Assert LenB(filename) <> 0
+    Dim lKey As Long: lKey = InterfaceTextureKeyFromFilename(filename)
+    Dim B    As Long: B = BucketIndex(lKey)
+    Dim J    As Long
+    ' 1) Cache hit
+    With TexList(B)
+        For J = 1 To .surfaceCount
+        If .SurfaceEntry(j).cacheKey = lKey _
+           And .SurfaceEntry(j).filename = LCase$(Trim$(filename)) Then
+                .SurfaceEntry(J).UltimoAcceso = GetTickCount()
+                textwidth = .SurfaceEntry(J).texture_width
+                textheight = .SurfaceEntry(J).texture_height
+                Set GetInterfaceTexture = .SurfaceEntry(J).Texture
+                Exit Function
+            End If
+        Next J
+    End With
+    ' 2) Cache miss: load from interface resources
+    Dim tex        As Direct3DTexture8
+    Dim loadResult As Long
+    loadResult = LoadInterfaceTexture(filename, tex)
+    If loadResult <> D3D_OK Or tex Is Nothing Then
+        frmDebug.add_text_tracebox "¡No se pudo cargar la textura de interfaz: " & filename & "!"
+        Exit Function
+    End If
+    ' Query size
+    Dim desc As D3DSURFACE_DESC
+    Call tex.GetLevelDesc(0, desc)
+    textwidth = desc.Width
+    textheight = desc.Height
+    ' 3) Insert into bucket
+    With TexList(B)
+        .surfaceCount = .surfaceCount + 1
+        If .surfaceCount = 1 Then
+            ReDim .SurfaceEntry(1 To 1) As SURFACE_ENTRY
+        Else
+            ReDim Preserve .SurfaceEntry(1 To .surfaceCount) As SURFACE_ENTRY
+        End If
+        With .SurfaceEntry(.surfaceCount)
+            .filename = LCase$(Trim$(filename))
+            .cacheKey = lKey
+            .UltimoAcceso = GetTickCount()
+            Set .Texture = tex
+            .texture_width = desc.Width
+            .texture_height = desc.Height
+            .size = desc.size
+        End With
+    End With
+    mTotalTextureCount = mTotalTextureCount + 1
+    mTotalAllocatedBytes = mTotalAllocatedBytes + desc.size
+    Set GetInterfaceTexture = tex
+    Exit Function
+errhandler:
+    Call RegistrarError(Err.Number, Err.Description, "clsTexManager.GetInterfaceTexture", Erl)
+    Resume Next
+End Function
+
+'======================
+' Load interface texture: PNG from compressed archive (Compresion=1) or BMP from disk (Compresion=0)
+'======================
+Private Function LoadInterfaceTexture(ByVal filename As String, ByRef Dest As Direct3DTexture8) As Long
+    On Error GoTo LoadInterfaceTexture_ErrHandler
+    Set Dest = Nothing
+    Dim bytArr() As Byte
+    #If Compresion = 1 Then
+        Dim pngName As String
+        pngName = LCase$(filename)
+        If Right$(pngName, 4) = ".bmp" Then pngName = Left$(pngName, Len(pngName) - 4) & ".png"
+        If Not Extract_File_To_Memory(interface, App.path & "\..\Recursos\OUTPUT", pngName, bytArr, ResourcesPassword) Then
+            frmDebug.add_text_tracebox "¡No se puede cargar la textura de interfaz: " & pngName & "!"
+            Exit Function
+        End If
+        Set Dest = mD3D.CreateTextureFromFileInMemoryEx(device, bytArr(0), UBound(bytArr) + 1, D3DX_DEFAULT, D3DX_DEFAULT, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, _
+                D3DX_FILTER_LINEAR, D3DX_FILTER_LINEAR, 0, ByVal 0, ByVal 0)
+    #Else
+        Dim PathToFile As String
+        PathToFile = App.path & "\..\Recursos\interface\" & LCase$(filename)
+        If Not FileExist(PathToFile, vbArchive) Then
+            frmDebug.add_text_tracebox "¡No se puede cargar la textura de interfaz: " & PathToFile & "!"
+            Exit Function
+        End If
+        Set dest = mD3D.CreateTextureFromFileEx(device, PathToFile, 0, 0, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, D3DX_FILTER_POINT, D3DX_FILTER_POINT, 0, ByVal 0, _
+        ByVal 0)
+    #End If
+    Debug.Assert (Not (Dest Is Nothing))
+    Exit Function
+LoadInterfaceTexture_ErrHandler:
+    LoadInterfaceTexture = Err.Number
+End Function
+
+'======================
 ' Procedural texture
 '======================
 Public Function CreateTexture(ByVal Width As Long, ByVal Height As Long) As Direct3DTexture8
@@ -327,3 +425,38 @@ Public Function CreateTexture(ByVal Width As Long, ByVal Height As Long) As Dire
 errhandler:
     frmDebug.add_text_tracebox "Failed to generate texture, " & Err.Description
 End Function
+
+Private Function InterfaceTextureKeyFromFilename(ByVal filename As String) As Long
+    On Error GoTo ErrHandler
+
+    Dim normalizedFilename As String
+
+    normalizedFilename = LCase$(Trim$(filename))
+
+    If LenB(normalizedFilename) = 0 Then
+        Call RegistrarError(0, _
+                            "Empty filename passed to InterfaceTextureKeyFromFilename", _
+                            "clsTexManager.InterfaceTextureKeyFromFilename", _
+                            Erl)
+
+        Exit Function
+    End If
+
+    InterfaceTextureKeyFromFilename = crcString(normalizedFilename)
+
+    If InterfaceTextureKeyFromFilename = 0 Then
+        Call RegistrarError(0, _
+                            "crcString returned 0 for filename: " & normalizedFilename, _
+                            "clsTexManager.InterfaceTextureKeyFromFilename", _
+                            Erl)
+    End If
+
+    Exit Function
+
+ErrHandler:
+    Call RegistrarError(Err.Number, _
+                        Err.Description & " Filename: " & filename, _
+                        "clsTexManager.InterfaceTextureKeyFromFilename", _
+                        Erl)
+End Function
+

@@ -1684,18 +1684,33 @@ Private Sub HandleChatOverHeadImpl(ByVal chat As String, _
             chat = NpcData(text).desc
             copiar = False
             If npcs_en_render And tutorial_index <= 0 Then
-                Dim headGrh As Long
-                Dim bodyGrh As Long
-                headGrh = HeadData(NpcData(text).Head).Head(3).GrhIndex
-                bodyGrh = GrhData(BodyData(NpcData(text).Body).Walk(3).GrhIndex).Frames(1)
-                If headGrh = 0 Then
-                    Call mostrarCartel(Split(NpcData(text).Name, " <")(0), NpcData(text).desc, bodyGrh, 200 + 30 * Len(chat), &H164B8A, , , True, 100, 479, 100, 535, 20, 500, _
-                            50, 80, bodyGrh, 1)
+                Dim npcFaceGrh As Long
+                Dim useNpcFaceGrh As Boolean
+                npcFaceGrh = NpcData(text).NpcFaceGrh
+                If npcFaceGrh > 0 Then
+                    If npcFaceGrh <= MaxGrh Then
+                        useNpcFaceGrh = GrhData(npcFaceGrh).NumFrames > 0 And _
+                                GrhData(npcFaceGrh).pixelWidth > 0 And _
+                                GrhData(npcFaceGrh).pixelHeight > 0
+                    End If
+                End If
+                If useNpcFaceGrh Then
+                    Call mostrarCartel(Split(NpcData(text).Name, " <")(0), NpcData(text).desc, npcFaceGrh, 200 + 30 * Len(chat), &H164B8A, , , True, 145, 479, 145, 535, 5, 477, _
+                            GrhData(npcFaceGrh).pixelWidth, GrhData(npcFaceGrh).pixelHeight)
                 Else
-                    Dim HeadOffsetY As Integer
-                    HeadOffsetY = CInt(BodyData(NpcData(text).Body).HeadOffset.y) - 30
-                    Call mostrarCartel(Split(NpcData(text).Name, " <")(0), NpcData(text).desc, headGrh, 200 + 30 * Len(chat), &H164B8A, , , True, 100, 479, 100, 535, 20, 500, _
-                            50, 100, bodyGrh, HeadOffsetY)
+                    Dim headGrh As Long
+                    Dim bodyGrh As Long
+                    headGrh = HeadData(NpcData(text).Head).Head(3).GrhIndex
+                    bodyGrh = GrhData(BodyData(NpcData(text).Body).Walk(3).GrhIndex).Frames(1)
+                    If headGrh = 0 Then
+                        Call mostrarCartel(Split(NpcData(text).Name, " <")(0), NpcData(text).desc, bodyGrh, 200 + 30 * Len(chat), &H164B8A, , , True, 100, 479, 100, 535, 20, 500, _
+                                50, 80, bodyGrh, 1)
+                    Else
+                        Dim HeadOffsetY As Integer
+                        HeadOffsetY = CInt(BodyData(NpcData(text).Body).HeadOffset.y) - 30
+                        Call mostrarCartel(Split(NpcData(text).Name, " <")(0), NpcData(text).desc, headGrh, 200 + 30 * Len(chat), &H164B8A, , , True, 100, 479, 100, 535, 20, 500, _
+                                50, 100, bodyGrh, HeadOffsetY)
+                    End If
                 End If
             End If
         Case "PMAG"
@@ -1920,6 +1935,7 @@ End Sub
 Private Sub HandleConsoleMessage()
     On Error GoTo errhandler
     Dim chat           As String
+    Dim Channel        As e_TextChannel
     Dim FontIndex      As Integer
     Dim str            As String
     Dim R              As Byte
@@ -1936,6 +1952,7 @@ Private Sub HandleConsoleMessage()
     Dim Valor          As String
     chat = Reader.ReadString8()
     FontIndex = Reader.ReadInt8()
+    If Reader.GetAvailable() > 0 Then Channel = Reader.ReadInt8()
     If ChatGlobal = 0 And FontIndex = FontTypeNames.FONTTYPE_GLOBAL Then Exit Sub
     QueEs = ReadField(1, chat, Asc("*"))
     Select Case QueEs
@@ -1999,10 +2016,10 @@ Private Sub HandleConsoleMessage()
         Else
             B = val(str)
         End If
-        Call AddtoRichTextBox(frmMain.RecTxt, Left$(chat, InStr(1, chat, "~") - 1), R, G, B, val(ReadField(5, chat, 126)) <> 0, val(ReadField(6, chat, 126)) <> 0)
+        Call AddtoRichTextBox(frmMain.RecTxt, Left$(chat, InStr(1, chat, "~") - 1), R, G, B, val(ReadField(5, chat, 126)) <> 0, val(ReadField(6, chat, 126)) <> 0, False, Channel)
     Else
         With FontTypes(FontIndex)
-            Call AddtoRichTextBox(frmMain.RecTxt, chat, .red, .green, .blue, .bold, .italic)
+            Call AddtoRichTextBox(frmMain.RecTxt, chat, .red, .green, .blue, .bold, .italic, False, Channel)
             If EsGM Then
                 Call frmPanelgm.CadenaChat(chat)
             End If
@@ -2035,6 +2052,7 @@ End Sub
 Private Sub HandleLocaleMsg()
     On Error GoTo errhandler
     Dim chat      As String
+    Dim Channel   As e_TextChannel
     Dim FontIndex As Integer
     Dim str       As String
     Dim R         As Byte
@@ -2044,6 +2062,7 @@ Private Sub HandleLocaleMsg()
     id = Reader.ReadInt16()
     chat = Reader.ReadString8()
     FontIndex = Reader.ReadInt8()
+    If Reader.GetAvailable() > 0 Then Channel = Reader.ReadInt8()
     chat = Locale_Parse_ServerMessage(id, chat)
     If InStr(1, chat, "~") Then
         str = ReadField(2, chat, 126)
@@ -2064,10 +2083,10 @@ Private Sub HandleLocaleMsg()
         Else
             B = val(str)
         End If
-        Call AddtoRichTextBox(frmMain.RecTxt, Left$(chat, InStr(1, chat, "~") - 1), R, G, B, val(ReadField(5, chat, 126)) <> 0, val(ReadField(6, chat, 126)) <> 0)
+        Call AddtoRichTextBox(frmMain.RecTxt, Left$(chat, InStr(1, chat, "~") - 1), R, G, B, val(ReadField(5, chat, 126)) <> 0, val(ReadField(6, chat, 126)) <> 0, False, Channel)
     Else
         With FontTypes(FontIndex)
-            Call AddtoRichTextBox(frmMain.RecTxt, chat, .red, .green, .blue, .bold, .italic)
+            Call AddtoRichTextBox(frmMain.RecTxt, chat, .red, .green, .blue, .bold, .italic, False, Channel)
         End With
     End If
     Exit Sub
@@ -2212,6 +2231,7 @@ Private Sub HandleUserCharIndexInServer()
         frmMain.Coord.ForeColor = RGB(170, 0, 0)
     End If
     Call UpdateMapPos
+    Call PlayCurrentMapMusic
     g_game_state.state = e_state_gameplay_screen
     Exit Sub
 HandleUserCharIndexInServer_Err:
@@ -2333,6 +2353,11 @@ Private Sub HandleCharacterCreate()
         .Team = Reader.ReadInt8()
         .banderaIndex = Reader.ReadInt8()
         .NpcNumber = Reader.ReadInt16()
+        If reader.GetAvailable() > 0 Then
+            .clan_alineacion = reader.ReadInt8()
+        Else
+            .clan_alineacion = eClanType.ct_Neutral
+        End If
         .AnimAtaque1 = NpcData(.NpcNumber).LandAttackAnimation
         .BodyOnLand = NpcData(.NpcNumber).Body
         .BodyIdle = NpcData(.NpcNumber).BodyIdle
@@ -2396,6 +2421,9 @@ Private Sub HandleCharacterCreate()
         End If
     End With
     Call RefreshAllChars
+    If charindex = UserCharIndex Then
+        Call PlayCurrentMapMusic
+    End If
     Exit Sub
 errhandler:
     Call RegistrarError(Err.Number, Err.Description, "Protocol.HandleCharacterCreate", Erl)
@@ -3018,6 +3046,14 @@ End Sub
 Private Sub HandleUpdateGroupInfo()
     On Error GoTo HandleUpdateGroupInfo_Err
     Group.GroupSize = Reader.ReadInt8
+
+    ' Limpiar el array cuando el grupo se disuelve o tiene solo el líder
+    If Group.GroupSize <= 1 Then
+        Erase Group.GroupMembers
+        Call UpdateRenderArea
+        Exit Sub
+    End If
+
     Dim i As Integer
     If Group.GroupSize > 1 Then
         ReDim Group.GroupMembers(Group.GroupSize) As t_GroupEntry
@@ -4703,8 +4739,10 @@ Private Sub HandleShowSOSForm()
         Consulta = ReadField(2, sosList(i), Asc("Ø"))
         TipoDeConsulta = ReadField(3, sosList(i), Asc("Ø"))
         FechaHoraDeConsulta = ReadField(4, sosList(i), Asc("Ø"))
-        frmPanelgm.List1.AddItem nombre & "(" & TipoDeConsulta & ") - " & format(FechaHoraDeConsulta, "dd/MM/yyyy hh:mm AM/PM")
-        frmPanelgm.List2.AddItem Consulta
+        If TipoDeConsulta = "Consulta regular" Or charlist(UserCharIndex).priv <> 2 Then
+            frmPanelgm.List1.AddItem nombre & "(" & TipoDeConsulta & ") - " & format(FechaHoraDeConsulta, "dd/MM/yyyy hh:mm AM/PM")
+            frmPanelgm.List2.AddItem Consulta
+        End If
     Next i
     Exit Sub
 errhandler:
@@ -5781,7 +5819,6 @@ Public Sub HandlePrivilegios()
         frmMain.createObj.visible = True
         frmMain.btnInvisible.visible = True
         frmMain.btnSpawn.visible = True
-        frmMain.onlines.visible = True
 #If DEBUGGING = 1 Then
         Call SetMask(FeatureToggles, eShowGmDebugData)
 #End If
@@ -5790,6 +5827,10 @@ Public Sub HandlePrivilegios()
         frmMain.createObj.visible = False
         frmMain.btnInvisible.visible = False
         frmMain.btnSpawn.visible = False
+    End If
+    If EsGM And charlist(UserCharIndex).priv <> 2 Then
+        frmMain.onlines.visible = True
+    Else
         frmMain.onlines.visible = False
     End If
     Exit Sub

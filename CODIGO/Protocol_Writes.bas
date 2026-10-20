@@ -37,6 +37,7 @@ Private Enum eActionRateLimitType
     ActionWorkLeftClick = 7
     ActionWalk = 8
     ActionMeditate = 9
+    ActionProjectileWorkLeftClick = 10
     [LastAction]
 End Enum
 Private lastActionSentTick(1 To eActionRateLimitType.LastAction - 1) As Long
@@ -115,6 +116,8 @@ Private Function GetActionIntervalMs(ByVal actionType As eActionRateLimitType) A
             GetActionIntervalMs = gIntervals.Hide
         Case ActionWorkLeftClick
             GetActionIntervalMs = gIntervals.Magic
+        Case ActionProjectileWorkLeftClick
+            GetActionIntervalMs = gIntervals.Bow
         Case ActionTalk
             GetActionIntervalMs = gIntervals.Talk
         Case ActionLeftClick
@@ -167,7 +170,6 @@ End Sub
 '   Int8   app_major
 '   Int8   app_minor
 '   Int8   app_revision
-'   String8 md5
 '
 Public Sub WriteLoginExistingChar()
     On Error GoTo WriteLoginExistingChar_Err
@@ -188,7 +190,6 @@ Public Sub WriteLoginExistingChar()
     Call Writer.WriteInt8(App.Major)
     Call Writer.WriteInt8(App.Minor)
     Call Writer.WriteInt8(App.Revision)
-    Call Writer.WriteString8(CheckMD5)
 
     Call modNetwork.send(Writer)
     Exit Sub
@@ -216,7 +217,6 @@ Public Sub WriteLoginNewChar(ByVal Name As String, ByVal Race As Integer, ByVal 
     Call Writer.WriteInt8(App.Major)
     Call Writer.WriteInt8(App.Minor)
     Call Writer.WriteInt8(App.Revision)
-    Call Writer.WriteString8(CheckMD5)
     Call Writer.WriteInt8(Race)
     Call Writer.WriteInt8(Gender)
     Call Writer.WriteInt8(Class)
@@ -462,6 +462,9 @@ Public Sub WritePickUp()
     On Error GoTo WritePickUp_Err
     '</EhHeader>
     Call Writer.WriteInt16(ClientPacketID.ePickUp)
+    Call Writer.WriteInt8(UserPos.x)
+    Call Writer.WriteInt8(UserPos.y)
+    Call Writer.WriteInt8(0)
     Call modNetwork.send(Writer)
     '<EhFooter>
     Exit Sub
@@ -768,6 +771,8 @@ Public Sub WriteDrop(ByVal Slot As Byte, ByVal Amount As Long)
     Call Writer.WriteInt32(Amount)
     packetCounters.TS_Drop = packetCounters.TS_Drop + 1
     Call Writer.WriteInt32(packetCounters.TS_Drop)
+    Call Writer.WriteInt8(UserPos.x)
+    Call Writer.WriteInt8(UserPos.y)
     Call modNetwork.send(Writer)
     '<EhFooter>
     Exit Sub
@@ -980,11 +985,11 @@ End Sub
 '
 ' @param    slot Invetory slot where the item to use is.
 ' @remarks  The data is not actually sent until the buffer is properly flushed.
-Public Function WriteUseItem(ByVal Slot As Byte) As Boolean
+Public Function WriteUseItem(ByVal Slot As Byte, Optional ByVal IgnoreRateLimit As Boolean = False) As Boolean
     '<EhHeader>
     On Error GoTo WriteUseItem_Err
     '</EhHeader>
-    If ShouldBlockAction(eActionRateLimitType.ActionUseItem) Then
+    If Not IgnoreRateLimit And ShouldBlockAction(eActionRateLimitType.ActionUseItem) Then
         Exit Function
     End If
     Call Writer.WriteInt16(ClientPacketID.eUseItem)
@@ -993,7 +998,7 @@ Public Function WriteUseItem(ByVal Slot As Byte) As Boolean
     packetCounters.TS_UseItem = packetCounters.TS_UseItem + 1
     Call Writer.WriteInt32(packetCounters.TS_UseItem)
     Call modNetwork.send(Writer)
-    Call MarkActionSent(ActionUseItem)
+    If Not IgnoreRateLimit Then Call MarkActionSent(ActionUseItem)
     WriteUseItem = True
     '<EhFooter>
     Exit Function
@@ -1008,11 +1013,11 @@ End Function
 '
 ' @param    slot Invetory slot where the item to use is.
 ' @remarks  The data is not actually sent until the buffer is properly flushed.
-Public Function WriteUseItemU(ByVal Slot As Byte) As Boolean
+Public Function WriteUseItemU(ByVal Slot As Byte, Optional ByVal IgnoreRateLimit As Boolean = False) As Boolean
     '<EhHeader>
     On Error GoTo WriteUseItemU_Err
     '</EhHeader>
-    If ShouldBlockAction(eActionRateLimitType.ActionUseItemU) Then
+    If Not IgnoreRateLimit And ShouldBlockAction(eActionRateLimitType.ActionUseItemU) Then
         Exit Function
     End If
     Call Writer.WriteInt16(ClientPacketID.eUseItemU)
@@ -1020,7 +1025,7 @@ Public Function WriteUseItemU(ByVal Slot As Byte) As Boolean
     packetCounters.TS_UseItemU = packetCounters.TS_UseItemU + 1
     Call Writer.WriteInt32(packetCounters.TS_UseItemU)
     Call modNetwork.send(Writer)
-    Call MarkActionSent(ActionUseItemU)
+    If Not IgnoreRateLimit Then Call MarkActionSent(ActionUseItemU)
     WriteUseItemU = True
     '<EhFooter>
     Exit Function
@@ -1148,6 +1153,10 @@ Public Function WriteWorkLeftClick(ByVal x As Byte, ByVal y As Byte, ByVal Skill
         If ShouldBlockAction(eActionRateLimitType.ActionWorkLeftClick) Then
             Exit Function
         End If
+    ElseIf Skill = eSkill.Proyectiles Then
+        If ShouldBlockAction(eActionRateLimitType.ActionProjectileWorkLeftClick) Then
+            Exit Function
+        End If
     End If
     Call Writer.WriteInt16(ClientPacketID.eWorkLeftClick)
     Call Writer.WriteInt8(x)
@@ -1158,6 +1167,8 @@ Public Function WriteWorkLeftClick(ByVal x As Byte, ByVal y As Byte, ByVal Skill
     Call modNetwork.send(Writer)
     If Skill = eSkill.magia Then
         Call MarkActionSent(ActionWorkLeftClick)
+    ElseIf Skill = eSkill.Proyectiles Then
+        Call MarkActionSent(ActionProjectileWorkLeftClick)
     End If
     WriteWorkLeftClick = True
     '<EhFooter>
@@ -3301,6 +3312,43 @@ WriteCrearEvento_Err:
     Call RegistrarError(Err.Number, Err.Description, "Argentum20.Protocol_Writes.WriteCrearEvento", Erl)
     '</EhFooter>
 End Sub
+
+Public Sub WriteModifyCastleWhiteList(ByVal command As String)
+    On Error GoTo WriteModifyCastleWhiteList_Err
+
+    command = Trim$(command)
+    If LenB(command) = 0 Then Exit Sub
+    If Len(command) > 255 Then Exit Sub
+    If HasControlCharacters(command) Then Exit Sub
+
+    Call Writer.WriteInt16(ClientPacketID.eModifyCastleWhiteList)
+    Call Writer.WriteString8(command)
+    Call modNetwork.send(Writer)
+    Exit Sub
+WriteModifyCastleWhiteList_Err:
+    Call Writer.Clear
+    Call RegistrarError(Err.Number, Err.Description, "Argentum20.Protocol_Writes.WriteModifyCastleWhiteList", Erl)
+End Sub
+
+Private Function HasControlCharacters(ByVal value As String) As Boolean
+    On Error GoTo HasControlCharacters_Err
+
+    Dim i         As Long
+    Dim charCode  As Integer
+
+    For i = 1 To Len(value)
+        charCode = AscW(Mid$(value, i, 1))
+        If (charCode >= 0 And charCode < 32) Or charCode = 127 Then
+            HasControlCharacters = True
+            Exit Function
+        End If
+    Next i
+
+    Exit Function
+HasControlCharacters_Err:
+    Call RegistrarError(Err.Number, Err.Description, "Argentum20.Protocol_Writes.HasControlCharacters", Erl)
+    HasControlCharacters = True
+End Function
 
 ''
 ' Writes the "KillNPC" message to the outgoing data buffer.

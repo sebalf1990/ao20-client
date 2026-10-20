@@ -22,6 +22,9 @@ Private Declare Function svb_install_minidump_handler Lib "steam_vb.dll" (ByVal 
 Private Declare Sub svb_run_callbacks Lib "steam_vb.dll" ()
 Private Declare Function svb_retlong Lib "steam_vb.dll" (ByVal Number As Long) As Long
 Public Declare Function svb_unlock_achivement Lib "steam_vb.dll" (ByVal Name As String) As Long
+Private Declare Function svb_get_current_beta_name Lib "steam_vb.dll" (ByVal buffer As String, ByVal bufferSize As Long) As Long
+Private Declare Function svb_set_active_beta Lib "steam_vb.dll" (ByVal betaName As String) As Long
+
 
 Public bSkins As Boolean
 
@@ -268,8 +271,10 @@ Sub AddtoRichTextBox(ByRef RichTextBox As RichTextBox, _
                      Optional ByVal blue As Integer, _
                      Optional ByVal bold As Boolean = False, _
                      Optional ByVal italic As Boolean = False, _
-                     Optional ByVal bCrLf As Boolean = False)
+                     Optional ByVal bCrLf As Boolean = False, _
+                     Optional ByVal Channel As e_TextChannel = TEXTCHANNEL_SYSTEM)
     On Error GoTo AddtoRichTextBox_Err
+    ' Channel defaults to SYSTEM for legacy packets that do not carry the field.
     Dim bUrl     As Boolean
     Dim sMax     As Long
     Dim sPos     As Long
@@ -862,7 +867,6 @@ Sub Main()
     Call SetNpcsRenderText
     Call cargarTutoriales
     Call InitializeEffectArrays
-    CheckMD5 = GetMd5
     SessionOpened = False
     Call Load(frmConnect)
     Call Load(FrmLogear)
@@ -1055,12 +1059,15 @@ Private Sub InicializarNombres()
     ListaRazasEs.Add JsonLanguage.Item("MENSAJE_RAZA_ENANO"), "Enano"
     ListaRazasEs.Add JsonLanguage.Item("MENSAJE_RAZA_ORCO"), "Orco"
     ' Ciudades ofrecidas al crear personaje (decision del dueno 2026-08-07: salio
-    ' Banderbill, entro Forgat). El indice es de PRESENTACION; el id real que viaja al
-    ' server sale de CiudadesOfrecidas, que se mantiene en paralelo.
+    ' Banderbill, entro Forgat; plan 15.001 D3f: las 7 del oficial en vivo). El indice
+    ' es de PRESENTACION; el id real que viaja al server sale de CiudadesOfrecidas.
     ListaCiudades(1) = "Ullathorpe": CiudadesOfrecidas(1) = eCiudad.cUllathorpe
     ListaCiudades(2) = "Nix":        CiudadesOfrecidas(2) = eCiudad.cNix
     ListaCiudades(3) = "Arghal":     CiudadesOfrecidas(3) = eCiudad.cArghal
     ListaCiudades(4) = "Forgat":     CiudadesOfrecidas(4) = eCiudad.cForgat
+    ListaCiudades(5) = "Eldoria":    CiudadesOfrecidas(5) = eCiudad.cEldoria
+    ListaCiudades(6) = "Penthar":    CiudadesOfrecidas(6) = eCiudad.cPenthar
+    ListaCiudades(7) = "Morgrim":    CiudadesOfrecidas(7) = eCiudad.cMorgrim
     ListaClases(eClass.Mage) = JsonLanguage.Item("MENSAJE_CLASE_MAGO")
     ListaClases(eClass.Cleric) = JsonLanguage.Item("MENSAJE_CLASE_CLERIGO")
     ListaClases(eClass.Warrior) = JsonLanguage.Item("MENSAJE_CLASE_GUERRERO")
@@ -1377,15 +1384,6 @@ RunningInVB_Err:
 End Function
 
 
-Public Function GetMd5() As String
-    On Error GoTo Handler
-    GetMd5 = MD5File(App.path & "\Argentum.exe")
-    Exit Function
-Handler:
-    Call MsgBox(JsonLanguage.Item("MENSAJEBOX_ERROR_CLIENTE_COMPROBAR"), vbOKOnly, JsonLanguage.Item("MENSAJEBOX_TITULO_CLIENTE_CORROMPIDO"))
-    End
-End Function
-
 Public Sub CheckResources()
     Dim data(1 To 200) As Byte
     Dim Handle         As Integer
@@ -1523,3 +1521,41 @@ Public Function GetLocalizedFilename(ByVal language As e_language, ByVal filenam
     End Select
     GetLocalizedFilename = localizedName
 End Function
+
+
+Public Function Steam_GetCurrentBetaName() As String
+    On Error GoTo Steam_GetCurrentBetaName_Err
+    
+    Dim buffer As String
+    buffer = Space$(128)
+    
+    If svb_get_current_beta_name(buffer, 128) <> 0 Then
+        ' Extract string up to null terminator
+        Dim nullPos As Long
+        nullPos = InStr(buffer, vbNullChar)
+        
+        If nullPos > 1 Then
+            Steam_GetCurrentBetaName = Left$(buffer, nullPos - 1)
+        Else
+            Steam_GetCurrentBetaName = vbNullString ' Default branch
+        End If
+    Else
+        Steam_GetCurrentBetaName = vbNullString
+    End If
+    
+    Exit Function
+Steam_GetCurrentBetaName_Err:
+    Steam_GetCurrentBetaName = vbNullString
+End Function
+
+
+Public Function Steam_SetActiveBeta(ByVal betaName As String) As Boolean
+    On Error GoTo Steam_SetActiveBeta_Err
+    If betaName = "Hardcore" Then betaName = vbNullString
+    Steam_SetActiveBeta = (svb_set_active_beta(betaName) <> 0)
+    
+    Exit Function
+Steam_SetActiveBeta_Err:
+    Steam_SetActiveBeta = False
+End Function
+

@@ -707,6 +707,7 @@ Public Const MAX_NPC_INVENTORY_SLOTS As Byte = 36
 Public Const MAXHECHI                As Byte = 150
 Public Const MAXSKILLPOINTS          As Byte = 100
 Public Const FLAGORO                 As Integer = 200
+Public Const MAP_LAYER_COUNT         As Long = 5
 Public Const FLAG_AGUA               As Integer = &H20
 Public Const FLAG_ARBOL              As Integer = &H40
 Public Const FLAG_COSTA              As Integer = &H80
@@ -750,6 +751,7 @@ Public Enum eCiudad
     cForgat
     cEldoria
     cPenthar
+    cMorgrim = 10 ' Plan 15.001 D3f: must match server e_City.cMorgrim
 End Enum
 
 Enum eRaza
@@ -825,7 +827,7 @@ Public Enum eObjType
     otContenedores = 7
     otCarteles = 8
     otLlaves = 9
-    ' 10 = otForos: sin uso, ningun objeto lo tiene (plan 17.001 D40)
+    otCastleSpawner = 10
     otPociones = 11
     otBebidas = 13
     otLeña = 14
@@ -868,6 +870,7 @@ Public Enum eObjType
     ' 54 = otPlants: tipo muerto, eliminado tambien en el server (plan 02.001)
     otElementalRune = 55
     otFactionForgiveness = 56
+    otCollectibleCard = 57
     otCualquiera = 1000
 End Enum
 
@@ -1021,8 +1024,9 @@ Public Const NUMATRIBUTOS                       As Byte = 5
 Public Const NUMCLASES                          As Byte = 12
 Public Const NUMRAZAS                           As Byte = 6
 ' Cantidad de ciudades OFRECIDAS al crear personaje (no es la cantidad de ciudades del
-' juego): la lista visible se desacoplo del enum en el plan 07.001.
-Public Const NUMCIUDADES                        As Byte = 4
+' juego): la lista visible se desacoplo del enum en el plan 07.001. Plan 15.001 D3f: las 7
+' del oficial en vivo; el cliente vb6-final (#923) forzaba Forgat y eso se descarta.
+Public Const NUMCIUDADES                        As Byte = 7
 Type tModRaza
     Fuerza As Integer
     Agilidad As Integer
@@ -1145,6 +1149,7 @@ Public Enum eTrigger
     VALIDOPUENTE = 17
     NADOCOMBINADO = 18
     CARCEL = 19
+    BLOQ15 = 201
 End Enum
 
 'Server stuff

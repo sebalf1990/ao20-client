@@ -1,6 +1,8 @@
 Attribute VB_Name = "ModViewportNeighbors"
 Option Explicit
 
+Private Const CSM_FIVE_LAYER_SIGNATURE_NEIGHBOR As Long = &H324C3557 ' same as Recursos.CSM_FIVE_LAYER_SIGNATURE
+
 Private Const DIR_NORTH As Integer = 1
 Private Const DIR_SOUTH As Integer = 2
 Private Const DIR_WEST  As Integer = 3
@@ -238,6 +240,15 @@ Private Function ViewportNeighbor_FindDominantNeighbor(ByVal ResourceMap As Inte
 
     fh = FreeFile
     Open MapPath For Binary As #fh
+    ' Plan 15.001: this reader only knows the legacy 4-layer CSM. A five-layer
+    ' file (signature W5L2, see Recursos.ReadCsmHeader) is skipped, not misread.
+    Dim csmSignature As Long
+    Get #fh, , csmSignature
+    If csmSignature = CSM_FIVE_LAYER_SIGNATURE_NEIGHBOR Then
+        Close #fh
+        Exit Function
+    End If
+    Seek #fh, 1
     Get #fh, , MH
     Get #fh, , MS
     Get #fh, , MD
@@ -314,6 +325,15 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
 
     fh = FreeFile
     Open MapPath For Binary As #fh
+    ' Plan 15.001: this reader only knows the legacy 4-layer CSM. A five-layer
+    ' file (signature W5L2, see Recursos.ReadCsmHeader) is skipped, not misread.
+    Dim csmSignature As Long
+    Get #fh, , csmSignature
+    If csmSignature = CSM_FIVE_LAYER_SIGNATURE_NEIGHBOR Then
+        Close #fh
+        Exit Function
+    End If
+    Seek #fh, 1
     Get #fh, , MH
     Get #fh, , MS
     Get #fh, , MD
