@@ -59,6 +59,7 @@ Public tutorial_index       As Integer
 Public cartel_visible       As Boolean
 Private cartel_index        As Byte
 Private text_message_render As String
+Private TutorialTextBufferLen As Long
 
 Public Enum e_tutorialIndex
     TUTORIAL_Muerto = 1
@@ -345,23 +346,64 @@ Public Sub toggleTutorialActivo(ByVal tutorial_index As Byte)
     End With
 End Sub
 
+Private Function GetTutorialDataSetting(ByVal section As String, ByVal keyName As String, Optional ByVal BufferLen As Long = 0) As String
+
+    Const TutorialsFile As String = "tutoriales.ini"
+
+    If BufferLen <= 0 Then
+        If TutorialTextBufferLen > 0 Then
+            BufferLen = TutorialTextBufferLen
+        Else
+            BufferLen = 100
+        End If
+    End If
+
+    #If Compresion = 1 Then
+        If Not Extract_File(Scripts, App.path & "\..\Recursos\OUTPUT\", TutorialsFile, Windows_Temp_Dir, ResourcesPassword, False) Then
+            Err.Description = "¡No se puede cargar el archivo de recurso!"
+        End If
+        GetTutorialDataSetting = GetVar(Windows_Temp_Dir & TutorialsFile, section, keyName, BufferLen)
+    #Else
+       
+        GetTutorialDataSetting = GetVar(App.path & "\..\Recursos\init\" & TutorialsFile, section, keyName, BufferLen)
+    #End If
+    
+    
+End Function
+
 Public Sub cargarTutoriales()
     Dim CantidadTutoriales As Long
     Dim i                  As Long, J As Long
-    CantidadTutoriales = GetSetting("INITTUTORIAL", "Cantidad")
-    MostrarTutorial = GetSetting("INITTUTORIAL", "MostrarTutorial")
+    Dim savedMostrarTutorial As String
+    Dim savedActivo As String
+    
+    TutorialTextBufferLen = val(GetTutorialDataSetting("INITTUTORIAL", "LargoTexto", 16))
+    If TutorialTextBufferLen <= 0 Then TutorialTextBufferLen = 100
+    
+    CantidadTutoriales = val(GetTutorialDataSetting("INITTUTORIAL", "Cantidad"))
+    savedMostrarTutorial = GetSetting("INITTUTORIAL", "MostrarTutorial")
+    If savedMostrarTutorial <> "" Then
+        MostrarTutorial = val(savedMostrarTutorial)
+    Else
+        MostrarTutorial = val(GetTutorialDataSetting("INITTUTORIAL", "MostrarTutorial"))
+    End If
     If CantidadTutoriales <= 0 Then Exit Sub
     ReDim tutorial(1 To CantidadTutoriales)
     For i = 1 To CantidadTutoriales
-        tutorial(i).Grh = val(GetSetting("TUTORIAL" & i, "Grh"))
-        tutorial(i).Activo = val(GetSetting("TUTORIAL" & i, "Activo"))
-        tutorial(i).titulo = GetSetting("TUTORIAL" & i, IIf(language = e_language.English, "en_titulo", "titulo"))
+        tutorial(i).Grh = val(GetTutorialDataSetting("TUTORIAL" & i, "Grh"))
+        savedActivo = GetSetting("TUTORIAL" & i, "Activo")
+        If savedActivo <> "" Then
+            tutorial(i).Activo = val(savedActivo)
+        Else
+            tutorial(i).Activo = val(GetTutorialDataSetting("TUTORIAL" & i, "Activo"))
+        End If
+        tutorial(i).titulo = GetTutorialDataSetting("TUTORIAL" & i, IIf(language = e_language.English, "en_titulo", "titulo"))
         Dim CantidadTextos As Long
-        CantidadTextos = val(GetSetting("TUTORIAL" & i, "Cantidad"))
+        CantidadTextos = val(GetTutorialDataSetting("TUTORIAL" & i, "Cantidad"))
         ReDim tutorial(i).textos(1 To CantidadTextos)
         If CantidadTextos > 0 Then
             For J = 1 To CantidadTextos
-                tutorial(i).textos(J) = GetSetting("TUTORIAL" & i, IIf(language = e_language.English, "en_texto" & J, "texto" & J))
+                tutorial(i).textos(J) = GetTutorialDataSetting("TUTORIAL" & i, IIf(language = e_language.English, "en_texto" & J, "texto" & J))
             Next J
         End If
     Next i
