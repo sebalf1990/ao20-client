@@ -3334,6 +3334,20 @@ Public Sub CadenaChat(ByVal chat As String)
     Dim nombre        As String
     Dim nombreObjetivo As String
     Dim PosicionBarra As Integer
+    Static UltimaCadena As String
+    Static UltimoTiempo As Single
+    Dim TiempoActualCadena As Single
+    Dim macroTotalGuardado As Boolean
+
+    TiempoActualCadena = Timer
+
+    If chat = UltimaCadena Then
+        If TiempoActualCadena - UltimoTiempo < 3 Then Exit Sub
+    End If
+
+    UltimaCadena = chat
+    UltimoTiempo = TiempoActualCadena
+
     ' La cadena original
     Cadena = chat
     ' Divide la cadena en partes utilizando "Usuarios trabajando:" como separador
@@ -3351,8 +3365,9 @@ Public Sub CadenaChat(ByVal chat As String)
             cboListaUsus.AddItem Trim(Nombres(i))
         Next i
     End If
-    ' Divide la cadena en partes utilizando "Control de paquetes -> El usuario" como separador
-    partes = Split(Cadena, "Control Paquetes---> El usuario")
+    If chkAntiCheat.value = 1 Then
+        ' Divide la cadena en partes utilizando "Control de paquetes -> El usuario" como separador
+        partes = Split(Cadena, "Control Paquetes---> El usuario")
     ' Verifica si hay al menos dos partes en la matriz resultante
     If UBound(partes) >= 1 Then
         ' La segunda parte (índice 1) contiene el nombre y otros caracteres
@@ -3364,7 +3379,10 @@ Public Sub CadenaChat(ByVal chat As String)
             nombre = Left(nombre, PosicionBarra - 1)
             ' Elimina espacios en blanco al principio y al final del nombre
             nombre = Trim(nombre)
-            If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
+            If chkInfoTXT.value = 1 And Not macroTotalGuardado Then
+                Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
+                macroTotalGuardado = True
+            End If
             If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(Cadena, "MacroDePaquetes.txt")
             Call AplicarSancionMacro(nombre, frmPanelgm.chkPaquetes.value = 1, frmPanelgm.chkPaquetesCarcel.value = 1, Cadena)
         End If
@@ -3410,7 +3428,10 @@ Public Sub CadenaChat(ByVal chat As String)
                     ' Manejar el caso en el que no hay coincidencias
             End Select
             If frmPanelgm.chkAutoName.value = 1 Then frmPanelgm.cboListaUsus.text = nombre
-            If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
+            If chkInfoTXT.value = 1 And Not macroTotalGuardado Then
+                Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
+                macroTotalGuardado = True
+            End If
         End If
     End If
     ' Divide la cadena en partes utilizando "AntiCheat> El usuario" como separador
@@ -3448,7 +3469,29 @@ Public Sub CadenaChat(ByVal chat As String)
                     ' Manejar el caso en el que no hay coincidencias
             End Select
             If frmPanelgm.chkAutoName.value = 1 Then frmPanelgm.cboListaUsus.text = nombre
-            If chkInfoTXT.value = 1 Then Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
+            If chkInfoTXT.value = 1 And Not macroTotalGuardado Then
+                Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
+                macroTotalGuardado = True
+            End If
+        End If
+    End If
+
+    Else
+        If InStr(Cadena, "Control Paquetes---> El usuario") > 0 Or InStr(Cadena, "Control de macro---> El usuario") > 0 Then
+            partes = Split(Cadena, "Control de macro---> El usuario")
+            If UBound(partes) >= 1 Then
+                nombre = partes(1)
+                PosicionBarra = InStr(nombre, "|")
+                If PosicionBarra > 0 Then
+                    nombre = Left(nombre, PosicionBarra - 1)
+                    nombre = Trim(nombre)
+                    If frmPanelgm.chkAutoName.value = 1 Then frmPanelgm.cboListaUsus.text = nombre
+                    If chkInfoTXT.value = 1 And Not macroTotalGuardado Then
+                Resultado = GuardarTextoEnArchivo(Cadena, "MacroTotal.txt")
+                macroTotalGuardado = True
+            End If
+                End If
+            End If
         End If
     End If
 
