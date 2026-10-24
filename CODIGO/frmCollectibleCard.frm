@@ -43,14 +43,10 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private Sub cmdAccept_Click()
+    ' The form is only hidden, so Form_Load does not run again: hiding cmdAccept here left it hidden
+    ' for every later card of the session (plan 23.005 A12).
     frmCollectibleCard.visible = False
-    cmdAccept.visible = False
     Call WriteUseItem(G_LastSelectedSlot)
-End Sub
-
-Private Sub cmdCancel_Click()
-    frmCollectibleCard.visible = False
-    cmdAccept.visible = False
 End Sub
 
 Private Sub Form_Load()
