@@ -355,8 +355,12 @@ Private Sub Form_Load()
     cmbTipo.List(1) = JsonLanguage.Item("MENSAJE_EVENTO_CACERIA")
     cmbTipo.List(2) = JsonLanguage.Item("MENSAJE_EVENTO_DEATHMATCH")
     cmbTipo.List(3) = JsonLanguage.Item("MENSAJE_EVENTO_ABORDAJE")
-    cmbEquipos.List(0) = JsonLanguage.Item("MENSAJE_EVENTO_MODALIDAD_RANDOM")
-    cmbEquipos.List(1) = JsonLanguage.Item("MENSAJE_EVENTO_MODALIDAD_GRUPOS")
+    ' Plan 27.001 ola 9 (C.11): estaban al reves. btnCrear_Click mapea cmbEquipos.ListIndex contra
+    ' el enum e_TeamTypes (ePremade=0, eRandom=1; igual en Declares.bas y en el ModLobby del
+    ' server), asi que elegir 'Aleatorio' en el indice 0 mandaba ePremade. Se da vuelta la LISTA
+    ' y no el Select, para que el orden de las etiquetas quede alineado con el valor del enum.
+    cmbEquipos.List(0) = JsonLanguage.Item("MENSAJE_EVENTO_MODALIDAD_GRUPOS")
+    cmbEquipos.List(1) = JsonLanguage.Item("MENSAJE_EVENTO_MODALIDAD_RANDOM")
     cmbTipo.ListIndex = 0
     cmbEquipos.ListIndex = 0
     tMinLvl.text = 1
@@ -395,6 +399,15 @@ Private Sub btnCrear_Click()
         tMinPlayers.SetFocus
         Exit Sub
     End If
+    ' Plan 27.001 ola 9 (C.12): la validacion va ANTES de la asignacion y sobre el TEXTO, no sobre
+    ' Settings.TeamSize, que es Byte: un "-5" o un "300" (tSize_Change los deja pasar porque son
+    ' numericos) desbordan EN la asignacion misma. El limite inferior de 1 cubre tambien el 0,
+    ' que hacia estallar el Mod de mas abajo con error 11 (division por cero).
+    If val(tSize.text) < 1 Or val(tSize.text) > 40 Then
+        Call MsgBox(JsonLanguage.Item("MENSAJE_LIMITE_JUGADORES_DIVISIBLE"), vbExclamation)
+        tSize.SetFocus
+        Exit Sub
+    End If
     Settings.TeamSize = val(tSize.text)
     If Settings.MinPlayers Mod Settings.TeamSize <> 0 Or Settings.MaxPlayers Mod Settings.TeamSize <> 0 Then
         Call MsgBox(JsonLanguage.Item("MENSAJE_LIMITE_JUGADORES_DIVISIBLE"), vbExclamation)
@@ -421,8 +434,10 @@ Private Sub btnCrear_Click()
     Unload Me
     Exit Sub
 errhandler:
+    ' Plan 27.001 ola 9 (C.12): Resume Next en un handler de click retoma en la linea SIGUIENTE a
+    ' la que fallo, o sea que seguia hasta WriteStartLobby y mandaba el paquete a medio armar.
+    ' Sin Resume, el error queda logueado y la sub termina.
     Call RegistrarError(Err.Number, Err.Description, "frmCreateBattleGround.btnCrear", Erl)
-    Resume Next
 End Sub
 
 Private Sub chkPassword_Click()

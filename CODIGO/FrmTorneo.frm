@@ -1214,6 +1214,12 @@ Private Sub Form_Load()
     OptMatarCon.Caption = JsonLanguage.Item("MENSAJE_DIA_DEL_GARROTE") ' Día del Garrote
     OptElDe.Caption = JsonLanguage.Item("MENSAJE_DEATHMATCH") ' DeathMach
     OptTorneo.Caption = JsonLanguage.Item("MENSAJE_TORNEO") ' Torneo
+    ' Plan 27.001 ola 9 (C.01): el torneo legacy es lo UNICO que se entierra de este form (el
+    ' server ya rechaza sus tres paquetes). Sin el radio no hay forma de llegar al
+    ' 'Case OptTorneo.value' de cmdConfigurarE_Click, asi que Frame1 y Command1_Click
+    ' (unico call site de WriteCreaerTorneo) quedan inalcanzables sin borrar nada.
+    OptTorneo.Visible = False
+    OptTorneo.value = False
     OptBufones.Caption = JsonLanguage.Item("MENSAJE_BUFONES") ' Bufones
     OptBusquedaDe.Caption = JsonLanguage.Item("MENSAJE_BUSQUEDA_TESORO") ' Búsqueda de tesoro
     OptAbordaje.Caption = JsonLanguage.Item("MENSAJE_ABORDAJE") ' Abordaje

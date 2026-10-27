@@ -2554,11 +2554,13 @@ Private Sub Command4_Click()
 End Sub
 
 Private Sub creartoneo_Click()
-    ' TORNEO LEGACY ENTERRADO (2026-08-05): nunca fue inscribible (/PARTICIPAR
-    ' rutea al lobby) y el server ya rechaza los tres paquetes. Usar eventos/lobby.
+    ' Plan 27.001 ola 9 (C.02): se REABRE FrmTorneo. Enterrarlo (2026-08-05) mato el UNICO
+    ' acceso al form ('FrmTorneo.Show' aparece una sola vez en todo dev/client, aca), y ese form
+    ' no es solo el torneo legacy: adentro viven la config de Caceria, DeathMatch, Abordaje (con
+    ' su validacion de participantes PAR), Captura, Busqueda del Tesoro y los botones de
+    ' /configlobby. El torneo legacy se neutraliza ADENTRO del form (OptTorneo invisible en
+    ' Form_Load) y en torneo_comenzar_Click (decision A3: 'retirado').
     On Error GoTo creartoneo_Click_Err
-    Call ShowConsoleMsg("El sistema de torneos legacy fue retirado. Usa el panel de eventos/lobby.")
-    Exit Sub
     FrmTorneo.Show
     Exit Sub
 creartoneo_Click_Err:
@@ -3036,7 +3038,8 @@ Private Sub personalizado_Click()
             "Tipo 3=Multiplica Recoleccion" & vbCrLf & "Tipo 4=Multiplica Dropeo" & vbCrLf & "Tipo 5=Multiplica Oro y Experiencia" & vbCrLf & _
             "Tipo 6=Multiplica Oro, experiencia y recoleccion" & vbCrLf & "Tipo 7=Multiplica Todo" & vbCrLf & "Duracion= Maximo: 59" & vbCrLf & "Multiplicacion= Maximo 3", _
             "Creacion de nuevo evento")
-    Call ParseUserCommand("/CREAREVENTO " & tmp)
+    ' Plan 27.001 ola 9 (C.03): el multiplicador ahora es /EVENTOMULTI (/CREAREVENTO es el lobby).
+    Call ParseUserCommand("/EVENTOMULTI " & tmp)
     Exit Sub
 personalizado_Click_Err:
     Call RegistrarError(Err.Number, Err.Description, "frmPanelGM.personalizado_Click", Erl)
@@ -3141,7 +3144,9 @@ torneo_cancelar_Click_Err:
 End Sub
 
 Private Sub torneo_comenzar_Click()
-    ' TORNEO LEGACY ENTERRADO (2026-08-05).
+    ' TORNEO LEGACY RETIRADO (2026-08-05; decision A3 del plan 27.001): el server rechaza el
+    ' paquete eComenzarTorneo (handler deprecado). El boton queda como 'retirado' a proposito:
+    ' la rama muerta de abajo (WriteComenzarTorneo) no se borra, queda documentada.
     On Error GoTo torneo_comenzar_Click_Err
     Call ShowConsoleMsg("El sistema de torneos legacy fue retirado. Usa el panel de eventos/lobby.")
     Exit Sub

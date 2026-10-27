@@ -607,7 +607,13 @@ Public Sub ParseUserCommand(ByVal RawCommand As String)
                     'Avisar que falta el parametro
                     Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_FALTAN_PARAMETROS_UTILICE"))
                 End If
-            Case "/CREAREVENTO", "/CREATEVENT"
+            ' Plan 27.001 ola 9 (C.03): este Case estaba DUPLICADO con el /CREAREVENTO del sistema de
+            ' lobby (CreateEventCmd, mas arriba) DENTRO DEL MISMO Select Case, y VB6 toma el primero
+            ' que matchea: esta rama nunca se ejecutaba. El evento multiplicador pasa a tener
+            ' nombre propio. El menu GM (evento1..4) llama WriteCrearEvento directo y no depende
+            ' de esto; 'personalizado' del panel GM se re-apunta a /EVENTOMULTI.
+            ' DEUDA: el server sigue mandando Msg731 'Utilice /CREAREVENTO TIPO@DURACION@MULTIPLICACION'.
+            Case "/EVENTOMULTI", "/MULTIEVENT"
                 If notNullArguments Then
                     tmpArr = Split(ArgumentosRaw, "@")
                     If UBound(tmpArr) = 2 Then
@@ -1311,8 +1317,14 @@ Public Sub ParseUserCommand(ByVal RawCommand As String)
             Case "/HABILITAR", "/ENABLE"
                 Call WriteServerOpenToUsersToggle
             Case "/PARTICIPAR", "/PARTICIPATE" '
+                ' Plan 27.001 ola 9 (C.07): WriteParticipar declara 'ByVal RoomId As Integer', asi
+                ' que la conversion String->Integer ocurre en ESTE frame: '/PARTICIPAR pepe' tira
+                ' error 13 y '/PARTICIPAR 99999' error 6, tapados por ParseUserCommand_Err +
+                ' Resume Next. El jugador escribia el comando y no pasaba nada.
                 If CantidadArgumentos < 1 Then
                     Call WriteParticipar(-1, "")
+                ElseIf Not ValidNumber(ArgumentosAll(0), eNumber_Types.ent_Integer) Then
+                    Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_PARAMETROS_INCORRECTOS"))
                 ElseIf CantidadArgumentos < 2 Then
                     Call WriteParticipar(ArgumentosAll(0), "")
                 Else
@@ -1608,8 +1620,12 @@ End Sub
 
 Private Sub StartCaptureTheFlag(ByRef arguments() As String, ByVal argCount As Integer)
     If argCount >= 6 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) And ValidNumber(arguments(2), eNumber_Types.ent_Long) And ValidNumber(arguments(3), eNumber_Types.ent_Long) And _
-                ValidNumber(arguments(4), eNumber_Types.ent_Long) And ValidNumber(arguments(5), eNumber_Types.ent_Long) Then
+        ' Plan 27.001 ola 9 (C.06): MaxPlayers, RoundAmount, MinLevel y MaxLevel son Byte en
+        ' t_NewScenearioSettings. Validar con ent_Long dejaba pasar 300 o -5, la asignacion tiraba
+        ' error 6 (Overflow) y ParseUserCommand_Err lo tapaba con Resume Next: el GM no veia nada.
+        ' arguments(5) es InscriptionFee (Long) y por eso queda con ent_Long.
+        If ValidNumber(arguments(1), eNumber_Types.ent_Byte) And ValidNumber(arguments(2), eNumber_Types.ent_Byte) And ValidNumber(arguments(3), eNumber_Types.ent_Byte) And _
+                ValidNumber(arguments(4), eNumber_Types.ent_Byte) And ValidNumber(arguments(5), eNumber_Types.ent_Long) Then
             Dim LobbyInfo As t_NewScenearioSettings
             LobbyInfo.ScenearioType = 1
             LobbyInfo.MaxPlayers = arguments(1)
@@ -1617,6 +1633,11 @@ Private Sub StartCaptureTheFlag(ByRef arguments() As String, ByVal argCount As I
             LobbyInfo.MinLevel = arguments(3)
             LobbyInfo.MaxLevel = arguments(4)
             LobbyInfo.InscriptionFee = arguments(5)
+            ' Plan 27.001 ola 9 (C.05): sin esto viajaba MinPlayers = 0 (VB6 zero-inicializa el UDT)
+            ' y el server lo normaliza a 2 avisandole al GM en CADA creacion. TeamSize y TeamType se
+            ' dejan en 0 A PROPOSITO: el CTF arma sus equipos con SortearDosEquipos y el Abordaje con
+            ' SetTeamCount; mandarlos desde el cliente rompe los dos.
+            LobbyInfo.MinPlayers = 2
             Call WriteStartLobby(0, LobbyInfo, "", "")
         Else
             'No es numerico
@@ -1628,13 +1649,20 @@ Private Sub StartCaptureTheFlag(ByRef arguments() As String, ByVal argCount As I
 End Sub
 
 Private Sub StartLobby(ByRef arguments() As String, ByVal argCount As Integer)
-    If argCount >= 3 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) And ValidNumber(arguments(2), eNumber_Types.ent_Long) And ValidNumber(arguments(3), eNumber_Types.ent_Long) Then
+    ' Plan 27.001 ola 9 (C.04): la guarda decia argCount >= 3 y el cuerpo lee arguments(3), o sea
+    ' que hacen falta 4 tokens (LOBBY PARTICIPANTES NIVEL_MIN NIVEL_MAX), que es lo que dice
+    ' MENSAJE_CREAREVENTO_USO. Con 3 tokens saltaba error 9 y se tapaba con Resume Next.
+    ' VB6 NO cortocircuita And: los tres ValidNumber se evaluan siempre.
+    ' Los tres destinos son Byte, por eso ent_Byte y no ent_Long.
+    If argCount >= 4 Then
+        If ValidNumber(arguments(1), eNumber_Types.ent_Byte) And ValidNumber(arguments(2), eNumber_Types.ent_Byte) And ValidNumber(arguments(3), eNumber_Types.ent_Byte) Then
             Dim LobbyInfo As t_NewScenearioSettings
             LobbyInfo.ScenearioType = 0
             LobbyInfo.MaxPlayers = arguments(1)
             LobbyInfo.MinLevel = arguments(2)
             LobbyInfo.MaxLevel = arguments(3)
+            ' Plan 27.001 ola 9 (C.05): ver la nota de StartCaptureTheFlag (TeamSize/TeamType en 0).
+            LobbyInfo.MinPlayers = 2
             Call WriteStartLobby(0, LobbyInfo, "", "")
         Else
             'No es numerico
@@ -1646,13 +1674,26 @@ Private Sub StartLobby(ByRef arguments() As String, ByVal argCount As Integer)
 End Sub
 
 Private Sub StartCustomMap(ByVal mapType As Byte, ByVal Name As String, ByRef arguments() As String, ByVal argCount As Integer)
-    If argCount >= 3 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) And ValidNumber(arguments(2), eNumber_Types.ent_Long) And ValidNumber(arguments(3), eNumber_Types.ent_Long) Then
+    ' Plan 27.001 ola 9 (C.04): mismo off-by-one que StartLobby (guarda 3, lee arguments(3)) y mismo
+    ' tipo equivocado. Esta sub sirve CACERIA(2), DEATHMATCH(3) y NAVALCONQUEST(4).
+    If argCount >= 4 Then
+        If ValidNumber(arguments(1), eNumber_Types.ent_Byte) And ValidNumber(arguments(2), eNumber_Types.ent_Byte) And ValidNumber(arguments(3), eNumber_Types.ent_Byte) Then
             Dim LobbyInfo As t_NewScenearioSettings
             LobbyInfo.ScenearioType = mapType
             LobbyInfo.MaxPlayers = arguments(1)
             LobbyInfo.MinLevel = arguments(2)
             LobbyInfo.MaxLevel = arguments(3)
+            LobbyInfo.MinPlayers = 2
+            ' Plan 27.001 ola 9 (C.14): el Abordaje (mapType 4 = e_EventType.NavalBattle) se parte en 2
+            ' equipos con ModLobby.SetTeamCount, que ABORTA si MaxPlayers es impar. Esta validacion
+            ' existia SOLO en FrmTorneo.cmdCrearElAbordaje_Click; el camino por chat no validaba nada.
+            ' Ifs anidados y no un And: VB6 NO cortocircuita.
+            If mapType = 4 Then
+                If (LobbyInfo.MaxPlayers Mod 2) <> 0 Then
+                    Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_NUMERO_PAR_PARTICIPANTES"))
+                    Exit Sub
+                End If
+            End If
             Call WriteStartLobby(0, LobbyInfo, "", "")
         Else
             'No es numerico
@@ -1714,18 +1755,6 @@ Private Sub ConfigLobbyClass(ByRef arguments() As String, ByVal argCount As Inte
             Call WriteLobbyCommand(e_LobbyCommandId.eSetClassLimit, 11)
         ElseIf eType = "BANDIT" Or eType = "BANDIDO" Then
             Call WriteLobbyCommand(e_LobbyCommandId.eSetClassLimit, 12)
-        End If
-    Else
-        Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_INCORRECTO_UTILICE"))
-    End If
-End Sub
-
-Private Sub ConfigLobbyTeamCount(ByRef arguments() As String, ByVal argCount As Integer)
-    If argCount > 1 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) And ValidNumber(arguments(2), eNumber_Types.ent_Long) And ValidNumber(arguments(3), eNumber_Types.ent_Long) Then
-        Else
-            'No es numerico
-            Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_INCORRECTO_UTILICE"))
         End If
     Else
         Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_INCORRECTO_UTILICE"))
@@ -1803,6 +1832,10 @@ Private Sub ConfigLobbyAddPlayer(ByRef arguments() As String, ByVal argCount As 
         Dim i          As Integer
         For i = 1 To argCount - 1
             PlayerName = PlayerName & arguments(i)
+            ' Plan 27.001 ola 9 (C.09): sin separador, 'addplayer Juan Perez' mandaba 'JuanPerez'.
+            If i < argCount - 1 Then
+                PlayerName = PlayerName & " "
+            End If
         Next i
         Call WriteLobbyCommand(e_LobbyCommandId.eAddPlayer, PlayerName)
     Else
@@ -1839,8 +1872,11 @@ End Sub
 
 Private Sub ConfigLobbyKickPlayer(ByRef arguments() As String, ByVal argCount As Integer)
     If argCount >= 2 Then
-        If ValidNumber(arguments(2), eNumber_Types.ent_Long) Then
-            Call WriteLobbyCommand(e_LobbyCommandId.eKickPlayer, arguments(2))
+        ' Plan 27.001 ola 9 (C.08, A7): el slot esta en arguments(1), no en arguments(2). Con
+        ' '/configlobby kick 3' hay 2 tokens y arguments(2) no existe (error 9 tapado por Resume Next).
+        ' Las subs hermanas usan arguments(1) con la misma guarda 'argCount >= 2'.
+        If ValidNumber(arguments(1), eNumber_Types.ent_Long) Then
+            Call WriteLobbyCommand(e_LobbyCommandId.eKickPlayer, arguments(1))
         Else
             Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_INCORRECTO_UTILICE"))
         End If
