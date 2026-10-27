@@ -617,7 +617,7 @@ Public Sub ParseUserCommand(ByVal RawCommand As String)
                 If notNullArguments Then
                     tmpArr = Split(ArgumentosRaw, "@")
                     If UBound(tmpArr) = 2 Then
-                        If ValidNumber(tmpArr(2), eNumber_Types.ent_Byte) Then
+                        If ValidNumber(tmpArr(0), eNumber_Types.ent_Byte) And ValidNumber(tmpArr(1), eNumber_Types.ent_Byte) And ValidNumber(tmpArr(2), eNumber_Types.ent_Byte) Then
                             Call WriteCrearEvento(tmpArr(0), tmpArr(1), tmpArr(2))
                         Else
                             'No es numerico
@@ -1763,7 +1763,7 @@ End Sub
 
 Private Sub ConfigLobbyMaxLevel(ByRef arguments() As String, ByVal argCount As Integer)
     If argCount >= 2 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) Then
+        If ValidNumber(arguments(1), eNumber_Types.ent_Byte) Then
             Call WriteLobbyCommand(e_LobbyCommandId.eSetMaxLevel, arguments(1))
         Else
             'No es numerico
@@ -1776,7 +1776,7 @@ End Sub
 
 Private Sub ConfigLobbyMinLevel(ByRef arguments() As String, ByVal argCount As Integer)
     If argCount >= 2 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) Then
+        If ValidNumber(arguments(1), eNumber_Types.ent_Byte) Then
             Call WriteLobbyCommand(e_LobbyCommandId.eSetMinLevel, arguments(1))
         Else
             'No es numerico
@@ -1789,7 +1789,7 @@ End Sub
 
 Private Sub ConfigLobbySummonPlayer(ByRef arguments() As String, ByVal argCount As Integer)
     If argCount >= 2 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) Then
+        If ValidNumber(arguments(1), eNumber_Types.ent_Integer) Then
             Call WriteLobbyCommand(e_LobbyCommandId.eSummonSinglePlayer, arguments(1))
         Else
             'No es numerico
@@ -1802,7 +1802,7 @@ End Sub
 
 Private Sub ConfigLobbyReturnPlayer(ByRef arguments() As String, ByVal argCount As Integer)
     If argCount >= 2 Then
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) Then
+        If ValidNumber(arguments(1), eNumber_Types.ent_Integer) Then
             Call WriteLobbyCommand(e_LobbyCommandId.eReturnSinglePlayer, arguments(1))
         Else
             'No es numerico
@@ -1845,7 +1845,11 @@ End Sub
 
 Private Sub ConfigLobbySetPrice(ByRef arguments() As String, ByVal argCount As Integer)
     If argCount >= 2 Then
-        Call WriteLobbyCommand(e_LobbyCommandId.eSetInscriptionPrice, arguments(1))
+        If ValidNumber(arguments(1), eNumber_Types.ent_Long) Then
+            Call WriteLobbyCommand(e_LobbyCommandId.eSetInscriptionPrice, arguments(1))
+        Else
+            Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_INCORRECTO_UTILICE"))
+        End If
     Else
         Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_INCORRECTO_UTILICE"))
     End If
@@ -1860,7 +1864,7 @@ Private Sub ConfigLobbySetTeamSize(ByRef arguments() As String, ByVal argCount A
                 premade = 0
             End If
         End If
-        If ValidNumber(arguments(1), eNumber_Types.ent_Long) Then
+        If ValidNumber(arguments(1), eNumber_Types.ent_Integer) Then
             Call WriteLobbyCommand(e_LobbyCommandId.eSetTeamSize, arguments(1) & " " & premade)
         Else
             Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_INCORRECTO_UTILICE"))
