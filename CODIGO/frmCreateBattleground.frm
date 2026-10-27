@@ -532,7 +532,7 @@ Private Sub tSize_Change()
         tSize.text = "1"
     End If
     value = CLng(tSize.text)
-    If (cmbEquipos.ListIndex = 1) Then
+    If (cmbEquipos.ListIndex = e_TeamTypes.ePremade) Then
         If value <= 1 Then
             tSize.text = "2"
         End If
@@ -563,7 +563,7 @@ End Sub
 Private Sub cmbEquipos_LostFocus()
     Dim value As Long
     value = CLng(tSize.text)
-    If (cmbEquipos.ListIndex = 1) Then
+    If (cmbEquipos.ListIndex = e_TeamTypes.ePremade) Then
         If value <= 1 Then
             tSize.text = "2"
         End If
