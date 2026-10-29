@@ -652,7 +652,7 @@ Public Sub ParseUserCommand(ByVal RawCommand As String)
                             If IsCastleWhiteListEligible() Then
                                 Call WriteModifyCastleWhiteList(Action & " " & CharacterName)
                             Else
-                                Call ShowConsoleMsg("Este comando está disponible solo para Patreons con castillo.")
+                                Call ShowConsoleMsg("Este comando está disponible solo para usuarios Premium con castillo.")
                             End If
                         Else
                             Call ShowConsoleMsg("Uso: /CASTLE ADD <personaje> o /CASTLE REMOVE <personaje>")
