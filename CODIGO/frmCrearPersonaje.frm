@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form frmCrearPersonaje 
    BackColor       =   &H00000000&
    BorderStyle     =   0  'None
-   Caption         =   "Argentum20"
+   Caption         =   "Nueva Ética AO"
    ClientHeight    =   11565
    ClientLeft      =   0
    ClientTop       =   0

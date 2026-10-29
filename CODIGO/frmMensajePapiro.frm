@@ -37,7 +37,7 @@ Begin VB.Form frmMensajePapiro
    Begin VB.Label Stream1 
       Alignment       =   2  'Center
       BackStyle       =   0  'Transparent
-      Caption         =   "Argentum Online Oficial"
+      Caption         =   "Nueva Ética AO"
       BeginProperty Font 
          Name            =   "Palatino Linotype"
          Size            =   9
