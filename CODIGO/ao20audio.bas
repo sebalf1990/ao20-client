@@ -88,7 +88,7 @@ Public Sub CreateAudioEngine(ByVal hWnd As Long, ByRef dx8 As DirectX8, ByRef re
     End If
     Exit Sub
 AudioEngineInitErr:
-    Call MsgBox(JsonLanguage.Item("MENSAJEBOX_ERROR_CREACION_ENGINE_AUDIO"), vbCritical, "Argentum20")
+    Call MsgBox(JsonLanguage.Item("MENSAJEBOX_ERROR_CREACION_ENGINE_AUDIO"), vbCritical, App.title)
     frmDebug.add_text_tracebox "Error Number Returned: " & Err.Number
     End
 End Sub

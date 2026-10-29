@@ -54,7 +54,7 @@ Public Sub Render_FullscreenGmBar()
     Dim white(3) As RGBA
     Call RGBAList(white, 240, 240, 240, 255)
 
-    Call Engine_Text_Render("Argentum20", GMBAR_LOGO_X, GMBAR_TEXT_Y, white, 1, True)
+    Call Engine_Text_Render("Nueva Ética", GMBAR_LOGO_X, GMBAR_TEXT_Y, white, 1, True)
     Call Engine_Text_Render("Online: " & usersOnline, GMBAR_ONLINE_X, GMBAR_TEXT_Y, white, 1, False)
 
     If EsGM Then

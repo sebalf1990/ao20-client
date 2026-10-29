@@ -5,7 +5,7 @@ Begin VB.Form frmConnect
    Appearance      =   0  'Flat
    BackColor       =   &H00000000&
    BorderStyle     =   0  'None
-   Caption         =   "Argentum20"
+   Caption         =   "Nueva Ética AO"
    ClientHeight    =   11520
    ClientLeft      =   15
    ClientTop       =   105

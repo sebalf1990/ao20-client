@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin VB.Form frmShopAO20 
    BorderStyle     =   0  'None
-   Caption         =   "Tienda AO20"
+   Caption         =   "Tienda"
    ClientHeight    =   7125
    ClientLeft      =   0
    ClientTop       =   0
