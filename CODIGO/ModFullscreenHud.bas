@@ -6,7 +6,7 @@ Attribute VB_Name = "ModFullscreenHud"
 '    Top-right: mapa y coords centrados con truncado por ancho, minimap con contorno,
 '    hora centrada, fuerza/agilidad alineadas a derecha.
 '
-'    Plan: ia/plans/2026/mayo/21.002.viewport-fullscreen-hud-flotante.md (Etapa 9)
+'    Plan: ia/archivo/plans/2026/2026-05-21-viewport-fullscreen-hud-flotante.md (Etapa 9)
 '
 Option Explicit
 

@@ -2,7 +2,7 @@ Attribute VB_Name = "ModViewportDebug"
 '    Argentum 20 - Game Client Program
 '
 '    Modulo provisorio de debug del PoC de viewport fullscreen.
-'    Plan: ia/plans/2026/mayo/20.002.viewport-fullscreen-poc.md
+'    Plan: ia/archivo/plans/2026/2026-05-20-viewport-fullscreen-poc.md
 '
 '    Responsabilidades:
 '      - Ring buffer en memoria con las ultimas N lineas que pasaron por la consola

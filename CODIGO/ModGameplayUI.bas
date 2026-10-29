@@ -866,7 +866,7 @@ ShowInteractionMenu_Err:
 End Sub
 
 ' ============== Viewport fullscreen toggle (PoC 2026-05-20) ==============
-' Plan: ia/plans/2026/mayo/20.002.viewport-fullscreen-poc.md
+' Plan: ia/archivo/plans/2026/2026-05-20-viewport-fullscreen-poc.md
 ' (Declaraciones a nivel de modulo movidas al principio del archivo, ver inicio.)
 
 Public Sub ToggleViewportFullscreen()
@@ -1000,4 +1000,4 @@ ClearRendererClip_Err:
 End Sub
 
 ' SetHudControlsVisible legacy fue reemplazado por ModFullscreenLayout.Apply_FullscreenLayout.
-' Plan: ia/plans/2026/mayo/21.002.viewport-fullscreen-hud-flotante.md (Etapa 1).
+' Plan: ia/archivo/plans/2026/2026-05-21-viewport-fullscreen-hud-flotante.md (Etapa 1).

@@ -5,7 +5,7 @@ Attribute VB_Name = "ModFullscreenBuffsPanel"
 '    Fuente de verdad: BuffList, DeBuffList y CDList, alimentadas por
 '    eSendSkillCdUpdate. Fuerza/Agilidad quedan fuera de este primer corte.
 '
-'    Plan: ia/plans/2026/mayo/21.002.viewport-fullscreen-hud-flotante.md (Etapa 4)
+'    Plan: ia/archivo/plans/2026/2026-05-21-viewport-fullscreen-hud-flotante.md (Etapa 4)
 '
 Option Explicit
 

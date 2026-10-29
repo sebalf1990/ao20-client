@@ -5,7 +5,7 @@ Attribute VB_Name = "ModFloatingWindows"
 '    Etapa 5: dummy de Inventario/Hechizos con abrir, cerrar, drag, pin,
 '    z-order y persistencia basica. No renderiza items ni hechizos reales todavia.
 '
-'    Plan: ia/plans/2026/mayo/21.002.viewport-fullscreen-hud-flotante.md (Etapa 5)
+'    Plan: ia/archivo/plans/2026/2026-05-21-viewport-fullscreen-hud-flotante.md (Etapa 5)
 '
 Option Explicit
 

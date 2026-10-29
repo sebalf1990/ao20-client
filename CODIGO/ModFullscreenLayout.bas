@@ -5,7 +5,7 @@ Attribute VB_Name = "ModFullscreenLayout"
 '    Reemplaza el ocultar-todo del SetHudControlsVisible legacy por una tabla
 '    que define que controles se ocultan vs se mueven a su zona FULL.
 '
-'    Plan: ia/plans/2026/mayo/21.002.viewport-fullscreen-hud-flotante.md
+'    Plan: ia/archivo/plans/2026/2026-05-21-viewport-fullscreen-hud-flotante.md
 '
 Option Explicit
 
