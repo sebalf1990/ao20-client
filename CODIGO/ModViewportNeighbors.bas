@@ -110,43 +110,98 @@ Private Type tMapDat
     niebla As Byte
 End Type
 
+' E4c: el bloque ya no guarda luz por tile (todas valian global_light del momento de la carga y en
+' cache quedarian viejas): se dibuja con la luz global vigente (g_neighbor_light).
+' Tamano: Grh = 40 bytes en memoria (LenB) -> bloque = 4 * 40 + 2 = 162, alineado a 164 bytes;
+' un mapa (100x100) = 1,64 MB. Se loguea Len/LenB real al reservar la cache ("[NEIGH] pool").
 Private Type tNeighborBlock
     Graphic(1 To 4) As Grh
-    light_value(3) As RGBA
     Blocked As Integer
 End Type
 
+' E4c: cache de vecinos por id de mapa (= archivo mapa{id}.csm realmente abierto, R2), con
+' NEIGHBOR_POOL_SIZE bloques y desalojo LRU. 9 bloques * 1,64 MB = ~14,8 MB, reservados recien la
+' primera vez que se carga un vecino (en HUD clasico puro no se reserva nada). 9 = 4 cardinales en uso
+' + margen para que ida y vuelta y caminatas cortas no relean (y espacio para esquinas en E4e).
+Private Const NEIGHBOR_POOL_SIZE As Integer = 9
+
+' Plan del mapa actual por direccion (se recalcula en cada cambio de mapa desde la lista de TE).
 Private g_neighbor_map(1 To 4) As Integer
 Private g_neighbor_count(1 To 4) As Integer
 Private g_neighbor_source_coord(1 To 4) As Integer
 Private g_neighbor_dest_coord(1 To 4) As Integer
 Private g_neighbor_loaded(1 To 4) As Boolean
-Private g_neighbor_data(1 To 4, 1 To MAP_MAX_TILES, 1 To MAP_MAX_TILES) As tNeighborBlock
+Private g_neighbor_slot(1 To 4) As Integer
 Private g_cached_resource_map As Integer
+Private g_neighbor_light(3) As RGBA
+
+' Cache: g_pool_data(x, y, slot); el slot va ultimo para que cada mapa quede contiguo en memoria.
+Private g_pool_data() As tNeighborBlock
+Private g_pool_ready As Boolean
+Private g_slot_map(1 To NEIGHBOR_POOL_SIZE) As Integer
+Private g_slot_last_use(1 To NEIGHBOR_POOL_SIZE) As Long
+Private g_neighbor_use_clock As Long
+Private g_empty_block As tNeighborBlock
 
 Public Sub ViewportNeighbor_PrepareForMap(ByVal ResourceMap As Integer)
     On Error GoTo ViewportNeighbor_PrepareForMap_Err
 
     Dim direction As Integer
+    Dim slot As Integer
     Dim targetMap(1 To 4) As Integer
     Dim sourceCoord(1 To 4) As Integer
     Dim destCoord(1 To 4) As Integer
+    Dim wanted(1 To 4) As Boolean
+    Dim hits As Integer
+    Dim loads As Integer
+    Dim summary As String
 
-    Call ViewportNeighbor_Clear
+    Call ViewportNeighbor_ResetDirections
     g_cached_resource_map = ResourceMap
+    If ResourceMap < 1 Then Exit Sub
 
     Call ViewportNeighbor_FindNeighbors(ResourceMap, targetMap, g_neighbor_count, sourceCoord, destCoord)
+
+    ' E4c: primero se marcan como usados en este cruce los vecinos que ya estan en cache, asi el LRU
+    ' no desaloja uno que se necesita ahora al cargar los que faltan.
+    g_neighbor_use_clock = g_neighbor_use_clock + 1
     For direction = DIR_NORTH To DIR_EAST
-        If targetMap(direction) > 0 And g_neighbor_count(direction) >= NEIGHBOR_MIN_TE_COUNT Then
-            If ViewportNeighbor_LoadMap(direction, targetMap(direction)) Then
+        wanted(direction) = (targetMap(direction) > 0 And g_neighbor_count(direction) >= NEIGHBOR_MIN_TE_COUNT)
+        If wanted(direction) Then
+            slot = ViewportNeighbor_FindSlot(targetMap(direction))
+            If slot > 0 Then g_slot_last_use(slot) = g_neighbor_use_clock
+        End If
+    Next direction
+
+    For direction = DIR_NORTH To DIR_EAST
+        If wanted(direction) Then
+            slot = ViewportNeighbor_FindSlot(targetMap(direction))
+            If slot > 0 Then
+                hits = hits + 1
+            Else
+                slot = ViewportNeighbor_AcquireSlot()
+                If slot > 0 Then
+                    If ViewportNeighbor_LoadMap(slot, targetMap(direction)) Then
+                        g_slot_map(slot) = targetMap(direction)
+                        loads = loads + 1
+                    Else
+                        slot = 0
+                    End If
+                End If
+            End If
+            If slot > 0 Then
+                g_slot_last_use(slot) = g_neighbor_use_clock
+                g_neighbor_slot(direction) = slot
                 g_neighbor_map(direction) = targetMap(direction)
                 g_neighbor_source_coord(direction) = sourceCoord(direction)
                 g_neighbor_dest_coord(direction) = destCoord(direction)
                 g_neighbor_loaded(direction) = True
             End If
         End If
+        summary = summary & " " & Mid$("NSWE", direction, 1) & "=" & g_neighbor_map(direction)
     Next direction
 
+    Call ViewportDebug_AppendDiagLog("[NEIGH] map=" & ResourceMap & summary & " hits=" & hits & " loads=" & loads)
     Exit Sub
 ViewportNeighbor_PrepareForMap_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_PrepareForMap", Erl)
@@ -174,15 +229,19 @@ Public Sub ViewportNeighbor_RenderLayer(ByVal Layer As Integer, _
     Dim perfT As Double
 
     perfT = Perf_FrameStart()
+    g_neighbor_light(0) = global_light
+    g_neighbor_light(1) = global_light
+    g_neighbor_light(2) = global_light
+    g_neighbor_light(3) = global_light
     For virtualY = RawMinY To RawMaxY
         For virtualX = RawMinX To RawMaxX
             If virtualX < XMinMapSize Or virtualX > XMaxMapSize Or virtualY < YMinMapSize Or virtualY > YMaxMapSize Then
                 If ViewportNeighbor_MapVirtualTile(virtualX, virtualY, direction, localX, localY) Then
                     screenX = BaseScreenX + virtualX * TilePixelWidth
                     screenY = BaseScreenY + virtualY * TilePixelHeight
-                    With g_neighbor_data(direction, localX, localY)
+                    With g_pool_data(localX, localY, g_neighbor_slot(direction))
                         If .Graphic(Layer).GrhIndex <> 0 Then
-                            Call Draw_Grh(.Graphic(Layer), screenX, screenY, 1, 1, .light_value, False, localX, localY)
+                            Call Draw_Grh(.Graphic(Layer), screenX, screenY, 1, 1, g_neighbor_light, False, localX, localY)
                         End If
                     End With
                 End If
@@ -196,9 +255,9 @@ ViewportNeighbor_RenderLayer_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_RenderLayer", Erl)
 End Sub
 
-Private Sub ViewportNeighbor_Clear()
-    On Error GoTo ViewportNeighbor_Clear_Err
-
+' E4c: solo se resetea el plan por direccion; la cache de bloques se conserva (antes: Erase de ~7 MB
+' por cruce y recarga de los 4 vecinos).
+Private Sub ViewportNeighbor_ResetDirections()
     Dim direction As Integer
 
     For direction = DIR_NORTH To DIR_EAST
@@ -207,13 +266,57 @@ Private Sub ViewportNeighbor_Clear()
         g_neighbor_source_coord(direction) = 0
         g_neighbor_dest_coord(direction) = 0
         g_neighbor_loaded(direction) = False
+        g_neighbor_slot(direction) = 0
     Next direction
-    Erase g_neighbor_data
-
-    Exit Sub
-ViewportNeighbor_Clear_Err:
-    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_Clear", Erl)
 End Sub
+
+Private Function ViewportNeighbor_FindSlot(ByVal mapId As Integer) As Integer
+    Dim slot As Integer
+
+    If Not g_pool_ready Or mapId < 1 Then Exit Function
+    For slot = 1 To NEIGHBOR_POOL_SIZE
+        If g_slot_map(slot) = mapId Then
+            ViewportNeighbor_FindSlot = slot
+            Exit Function
+        End If
+    Next slot
+End Function
+
+' Devuelve un slot libre o, si no hay, el usado hace mas tiempo que no se necesite en este cruce.
+' El slot devuelto queda marcado libre (g_slot_map = 0) hasta que la carga termine bien.
+Private Function ViewportNeighbor_AcquireSlot() As Integer
+    Dim slot As Integer
+    Dim best As Integer
+
+    If Not g_pool_ready Then
+        ReDim g_pool_data(1 To MAP_MAX_TILES, 1 To MAP_MAX_TILES, 1 To NEIGHBOR_POOL_SIZE)
+        g_pool_ready = True
+        Call ViewportDebug_AppendDiagLog("[NEIGH] pool slots=" & NEIGHBOR_POOL_SIZE & " block Len=" & Len(g_pool_data(1, 1, 1)) & " LenB=" & LenB(g_pool_data(1, 1, 1)) & _
+                " bytes=" & CStr(CLng(MAP_MAX_TILES) * MAP_MAX_TILES * NEIGHBOR_POOL_SIZE * LenB(g_pool_data(1, 1, 1))))
+    End If
+
+    For slot = 1 To NEIGHBOR_POOL_SIZE
+        If g_slot_map(slot) = 0 Then
+            best = slot
+            Exit For
+        End If
+    Next slot
+
+    If best = 0 Then
+        For slot = 1 To NEIGHBOR_POOL_SIZE
+            If g_slot_last_use(slot) < g_neighbor_use_clock Then
+                If best = 0 Then
+                    best = slot
+                ElseIf g_slot_last_use(slot) < g_slot_last_use(best) Then
+                    best = slot
+                End If
+            End If
+        Next slot
+    End If
+
+    If best > 0 Then g_slot_map(best) = 0
+    ViewportNeighbor_AcquireSlot = best
+End Function
 
 ' E4b: una sola apertura del .csm actual y una sola pasada por su lista de TE para los 4 lados
 ' (antes se abria 4 veces, una por direccion). Mismo criterio de desempate que antes: por lado gana
@@ -320,7 +423,7 @@ ViewportNeighbor_FindNeighbors_Err:
     Call RegistrarError(errNumber, errDescription, "ModViewportNeighbors.ViewportNeighbor_FindNeighbors", errLine)
 End Sub
 
-Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal ResourceMap As Integer) As Boolean
+Private Function ViewportNeighbor_LoadMap(ByVal slot As Integer, ByVal ResourceMap As Integer) As Boolean
     On Error GoTo ViewportNeighbor_LoadMap_Err
 
     Dim fh           As Integer
@@ -344,7 +447,7 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
     MapPath = ViewportNeighbor_MapPath(ResourceMap)
     If LenB(Dir$(MapPath)) = 0 Then Exit Function
 
-    Call ViewportNeighbor_InitDirection(direction)
+    Call ViewportNeighbor_ClearSlot(slot)
 
     fh = FreeFile
     Open MapPath For Binary As #fh
@@ -370,7 +473,7 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
             For i = 1 To .NumeroBloqueados
                 ' E1: coordenadas fuera de 1..MAP_MAX_TILES se saltean (no abortan la carga).
                 If Blqs(i).x >= 1 And Blqs(i).x <= MAP_MAX_TILES And Blqs(i).y >= 1 And Blqs(i).y <= MAP_MAX_TILES Then
-                    g_neighbor_data(direction, Blqs(i).x, Blqs(i).y).Blocked = Blqs(i).lados
+                    g_pool_data(Blqs(i).x, Blqs(i).y, slot).Blocked = Blqs(i).lados
                 End If
             Next i
         End If
@@ -384,7 +487,7 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
                     y = L(i).y
                     ' E1: coordenadas fuera de 1..MAP_MAX_TILES se saltean (no abortan la carga).
                     If x >= 1 And x <= MAP_MAX_TILES And y >= 1 And y <= MAP_MAX_TILES Then
-                        With g_neighbor_data(direction, x, y)
+                        With g_pool_data(x, y, slot)
                             .Graphic(layer).GrhIndex = L(i).GrhIndex
                             .Graphic(layer).x = x * TilePixelWidth
                             .Graphic(layer).y = y * TilePixelHeight
@@ -447,24 +550,22 @@ ViewportNeighbor_LoadMap_Err:
     Call RegistrarError(errNumber, errDescription, "ModViewportNeighbors.ViewportNeighbor_LoadMap", errLine)
 End Function
 
-Private Sub ViewportNeighbor_InitDirection(ByVal direction As Integer)
-    On Error GoTo ViewportNeighbor_InitDirection_Err
+' E4c: vacia solo el slot que se va a recargar (la carga solo escribe los tiles presentes en el .csm).
+Private Sub ViewportNeighbor_ClearSlot(ByVal slot As Integer)
+    On Error GoTo ViewportNeighbor_ClearSlot_Err
 
     Dim x As Integer
     Dim y As Integer
 
-    For x = 1 To MAP_MAX_TILES
-        For y = 1 To MAP_MAX_TILES
-            g_neighbor_data(direction, x, y).light_value(0) = global_light
-            g_neighbor_data(direction, x, y).light_value(1) = global_light
-            g_neighbor_data(direction, x, y).light_value(2) = global_light
-            g_neighbor_data(direction, x, y).light_value(3) = global_light
-        Next y
-    Next x
+    For y = 1 To MAP_MAX_TILES
+        For x = 1 To MAP_MAX_TILES
+            g_pool_data(x, y, slot) = g_empty_block
+        Next x
+    Next y
 
     Exit Sub
-ViewportNeighbor_InitDirection_Err:
-    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_InitDirection", Erl)
+ViewportNeighbor_ClearSlot_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_ClearSlot", Erl)
 End Sub
 
 Private Function ViewportNeighbor_MapVirtualTile(ByVal virtualX As Integer, _
