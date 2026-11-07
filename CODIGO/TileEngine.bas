@@ -492,6 +492,9 @@ Public RadarPartyMembers(1 To 100) As t_RadarHostile
 Public RadarPartyMembersCount As Integer
 Public RadarClanMembers(1 To 100) As t_RadarHostile
 Public RadarClanMembersCount As Integer
+' Plan radar-v2 E2: los paquetes de radar solo marcan el minimapa como sucio; el loop de render
+' (engine.start) lo redibuja una vez por frame en vez de una vez por paquete (hasta 14 por tick).
+Public MinimapRadarDirty As Boolean
 
 ' Used by GetTextExtentPoint32
 Private Type size

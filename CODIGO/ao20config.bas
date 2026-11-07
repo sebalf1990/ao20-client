@@ -181,7 +181,7 @@ Sub LoadConfig()
     X_OFFSET = CInt(val(GetSetting("OPCIONES", "EquipmentIndicatorCoordinateX")))
     Y_OFFSET = CInt(val(GetSetting("OPCIONES", "EquipmentIndicatorCoordinateY")))
     EQUIPMENT_CARACTER = GetSetting("OPCIONES", "EquipmentIndicatorCaracter")
-    CenteredMinimap = GetSettingAsByte("OPCIONES", "CenteredMinimap", 1)
+    CenteredMinimap = GetSettingAsByte("OPCIONES", "CenteredMinimap", 0)   ' plan radar-v2 D1: clasico por defecto
     CenteredMinimapZoom = CInt(val(GetSetting("OPCIONES", "CenteredMinimapZoom")))
     'Init
     #If PYMMO = 0 Or DEBUGGING = 1 Then
