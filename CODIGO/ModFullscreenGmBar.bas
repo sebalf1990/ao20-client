@@ -28,6 +28,13 @@ Private Const GM_BTN_INVIS_W     As Long = 80
 
 Private g_gmbar_active As Boolean
 
+' E3: textos de la barra cacheados por valor (se arman solo cuando cambia el numero).
+Private g_online_value As Long
+Private g_online_text  As String
+Private g_fps_value    As Long
+Private g_fps_text     As String
+Private g_fps_width    As Long
+
 Public Sub Set_FullscreenGmBarActive(ByVal active As Boolean)
     g_gmbar_active = active
 End Sub
@@ -55,7 +62,11 @@ Public Sub Render_FullscreenGmBar()
     Call RGBAList(white, 240, 240, 240, 255)
 
     Call Engine_Text_Render("Nueva Ética", GMBAR_LOGO_X, GMBAR_TEXT_Y, white, 1, True)
-    Call Engine_Text_Render("Online: " & usersOnline, GMBAR_ONLINE_X, GMBAR_TEXT_Y, white, 1, False)
+    If LenB(g_online_text) = 0 Or g_online_value <> usersOnline Then
+        g_online_value = usersOnline
+        g_online_text = "Online: " & g_online_value
+    End If
+    Call Engine_Text_Render(g_online_text, GMBAR_ONLINE_X, GMBAR_TEXT_Y, white, 1, False)
 
     If EsGM Then
         Dim cx As Long
@@ -66,11 +77,12 @@ Public Sub Render_FullscreenGmBar()
         Call Engine_Text_Render("Invisible", cx + GM_BTN_INVIS_X, GMBAR_TEXT_Y, white, 1, True)
     End If
 
-    Dim fpsTxt As String
-    fpsTxt = "FPS: " & engine.fps
-    Dim fpsW As Long
-    fpsW = Engine_Text_Width(fpsTxt, False)
-    Call Engine_Text_Render(fpsTxt, sw - fpsW - 8, GMBAR_TEXT_Y, white, 1, False)
+    If LenB(g_fps_text) = 0 Or g_fps_value <> engine.fps Then
+        g_fps_value = engine.fps
+        g_fps_text = "FPS: " & g_fps_value
+        g_fps_width = Engine_Text_Width(g_fps_text, False)
+    End If
+    Call Engine_Text_Render(g_fps_text, sw - g_fps_width - 8, GMBAR_TEXT_Y, white, 1, False)
     Exit Sub
 Err_h:
     Call RegistrarError(Err.Number, Err.Description, "ModFullscreenGmBar.Render_FullscreenGmBar", Erl)

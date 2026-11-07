@@ -21,7 +21,11 @@ Private Const BUTTON_W       As Long = 20
 Private Const INV_OFFSET_X   As Long = 6
 Private Const INV_OFFSET_Y   As Long = 36
 Private Const INV_SPACE      As Long = 3
-Private Const LAYOUT_FILE    As String = "fullscreen_windows.ini"
+Private Const LEGACY_LAYOUT_FILE As String = "fullscreen_windows.ini"
+' E2: las posiciones viven en Configuracion.ini (via GetSetting/SaveSetting), seccion [FloatingWindows],
+' claves InvLeft/InvTop/InvPinned/InvVisible y SpellLeft/SpellTop/SpellPinned/SpellVisible.
+Private Const LAYOUT_SECTION     As String = "FloatingWindows"
+Private Const LAYOUT_MIGRATED    As String = "Migrated"
 
 ' Layout de la ventana flotante de Hechizos (ref: picFullSpellList anidado en picFullSpellWindow)
 Private Const SPELL_LIST_TOP As Long = 28
@@ -188,7 +192,7 @@ Private Sub ApplyWindowState(ByVal windowId As e_FloatingWindowId)
     ctl.Width = FLOAT_W
     ctl.Height = FLOAT_H
     Call ClampWindowToViewport(ctl)
-    ctl.Visible = (val(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Visible", "0")) <> 0)
+    ctl.Visible = (val(ReadLayoutValue(windowId, "Visible", "0")) <> 0)
     If windowId = efwInventory Then
         If ctl.Visible Then
             Call BindMainInventoryToFloating
@@ -219,6 +223,7 @@ End Sub
 Private Sub LoadFloatingWindowState()
     On Error GoTo LoadFloatingWindowState_Err
     If g_loaded Then Exit Sub
+    Call MigrateLegacyLayout
     Call LoadOneWindow(efwInventory, 270, 180)
     Call LoadOneWindow(efwSpells, 540, 180)
     g_loaded = True
@@ -233,10 +238,50 @@ Private Sub LoadOneWindow(ByVal windowId As e_FloatingWindowId, ByVal defaultLef
     Set ctl = WindowCtl(windowId)
     ctl.Width = FLOAT_W
     ctl.Height = FLOAT_H
-    ctl.Left = ParseLayoutCoord(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Left", CStr(defaultLeft)), defaultLeft)
-    ctl.Top = ParseLayoutCoord(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Top", CStr(defaultTop)), defaultTop)
-    g_pinned(windowId) = (val(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Pinned", "0")) <> 0)
+    ctl.Left = ParseLayoutCoord(ReadLayoutValue(windowId, "Left", CStr(defaultLeft)), defaultLeft)
+    ctl.Top = ParseLayoutCoord(ReadLayoutValue(windowId, "Top", CStr(defaultTop)), defaultTop)
+    g_pinned(windowId) = (val(ReadLayoutValue(windowId, "Pinned", "0")) <> 0)
     Call ClampWindowToViewport(ctl)
+End Sub
+
+' E2: lee una clave del layout en Configuracion.ini; si falta devuelve el default.
+Private Function ReadLayoutValue(ByVal windowId As e_FloatingWindowId, ByVal suffix As String, ByVal defaultValue As String) As String
+    Dim storedValue As String
+    storedValue = GetSetting(LAYOUT_SECTION, KeyPrefix(windowId) & suffix)
+    If LenB(storedValue) = 0 Then
+        ReadLayoutValue = defaultValue
+    Else
+        ReadLayoutValue = storedValue
+    End If
+End Function
+
+' E2 (D2 = migrar): una sola vez, copia las posiciones del archivo viejo (App.path, fullscreen_windows.ini) a
+' [FloatingWindows]. Solo corre si la seccion no tiene la marca Migrated; no borra el archivo viejo.
+Private Sub MigrateLegacyLayout()
+    On Error GoTo MigrateLegacyLayout_Err
+    If LenB(GetSetting(LAYOUT_SECTION, LAYOUT_MIGRATED)) > 0 Then Exit Sub
+    Dim legacyPath As String
+    legacyPath = App.path & "\" & LEGACY_LAYOUT_FILE
+    If FileExist(legacyPath, vbArchive) Then
+        Dim windowId As Long
+        Dim suffixes As Variant
+        Dim suffixIndex As Long
+        Dim legacyValue As String
+        suffixes = Array("Left", "Top", "Pinned", "Visible")
+        For windowId = efwInventory To efwSpells
+            For suffixIndex = LBound(suffixes) To UBound(suffixes)
+                legacyValue = GetVar(legacyPath, SectionName(windowId), CStr(suffixes(suffixIndex)))
+                If LenB(legacyValue) > 0 Then
+                    Call SaveSetting(LAYOUT_SECTION, KeyPrefix(windowId) & CStr(suffixes(suffixIndex)), legacyValue)
+                End If
+            Next suffixIndex
+        Next windowId
+    End If
+    Call SaveSetting(LAYOUT_SECTION, LAYOUT_MIGRATED, "1")
+    Exit Sub
+MigrateLegacyLayout_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModFloatingWindows.MigrateLegacyLayout", Erl)
+    Resume Next
 End Sub
 
 ' E1: valida el rango antes de CLng (un valor enorme en el ini desbordaba y salteaba Pinned/clamp).
@@ -255,10 +300,10 @@ Private Sub SaveFloatingWindowState(ByVal windowId As e_FloatingWindowId)
     On Error GoTo SaveFloatingWindowState_Err
     Dim ctl As PictureBox
     Set ctl = WindowCtl(windowId)
-    Call WriteVar(LayoutPath(), SectionName(windowId), "Left", CStr(ctl.Left))
-    Call WriteVar(LayoutPath(), SectionName(windowId), "Top", CStr(ctl.Top))
-    Call WriteVar(LayoutPath(), SectionName(windowId), "Pinned", IIf(g_pinned(windowId), "1", "0"))
-    Call WriteVar(LayoutPath(), SectionName(windowId), "Visible", IIf(ctl.Visible, "1", "0"))
+    Call SaveSetting(LAYOUT_SECTION, KeyPrefix(windowId) & "Left", CStr(ctl.Left))
+    Call SaveSetting(LAYOUT_SECTION, KeyPrefix(windowId) & "Top", CStr(ctl.Top))
+    Call SaveSetting(LAYOUT_SECTION, KeyPrefix(windowId) & "Pinned", IIf(g_pinned(windowId), "1", "0"))
+    Call SaveSetting(LAYOUT_SECTION, KeyPrefix(windowId) & "Visible", IIf(ctl.Visible, "1", "0"))
     Exit Sub
 SaveFloatingWindowState_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModFloatingWindows.SaveFloatingWindowState", Erl)
@@ -460,12 +505,23 @@ Private Function WindowCtl(ByVal windowId As e_FloatingWindowId) As PictureBox
     End Select
 End Function
 
+' Nombre de seccion del archivo viejo (solo se usa en la migracion).
 Private Function SectionName(ByVal windowId As e_FloatingWindowId) As String
     Select Case windowId
         Case efwInventory
             SectionName = "Inventory"
         Case efwSpells
             SectionName = "Spells"
+    End Select
+End Function
+
+' Prefijo de las claves en [FloatingWindows].
+Private Function KeyPrefix(ByVal windowId As e_FloatingWindowId) As String
+    Select Case windowId
+        Case efwInventory
+            KeyPrefix = "Inv"
+        Case efwSpells
+            KeyPrefix = "Spell"
     End Select
 End Function
 
@@ -476,8 +532,4 @@ Private Function WindowTitle(ByVal windowId As e_FloatingWindowId) As String
         Case efwSpells
             WindowTitle = "Hechizos"
     End Select
-End Function
-
-Private Function LayoutPath() As String
-    LayoutPath = App.path & "\" & LAYOUT_FILE
 End Function
