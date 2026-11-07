@@ -490,6 +490,8 @@ Public Function HandleIncomingData(ByVal message As Network.Reader) As Boolean
                 Call HandleNpcRadarClanMember
             Case ServerPacketID.eNpcRadarJefe
                 Call HandleNpcRadarJefe
+            Case ServerPacketID.eMinimapPingShow
+                Call HandleMinimapPingShow
             Case Else
                 ' Invalid Message
         End Select
@@ -6632,6 +6634,24 @@ Private Sub HandleNpcRadarPartyMember()
     Exit Sub
 HandleNpcRadarPartyMember_Err:
     Call RegistrarError(Err.Number, Err.Description, "Protocol.HandleNpcRadarPartyMember", Erl)
+End Sub
+
+' Plan radar-v2 E6: un companero de party marco un punto en el minimapa.
+Private Sub HandleMinimapPingShow()
+    On Error GoTo HandleMinimapPingShow_Err
+    Dim x As Byte
+    Dim y As Byte
+    Dim senderName As String
+    x = Reader.ReadInt8()
+    y = Reader.ReadInt8()
+    senderName = Reader.ReadString8()
+    If Not RadarShowPings Then Exit Sub
+    Call AddMinimapPing(x, y)
+    Call ShowConsoleMsg(senderName & " marcó un punto en el minimapa.", 255, 255, 0)
+    Call ao20audio.PlayWav(CStr(SND_EXCLAMACION), False, 0, 0)
+    Exit Sub
+HandleMinimapPingShow_Err:
+    Call RegistrarError(Err.Number, Err.Description, "Protocol.HandleMinimapPingShow", Erl)
 End Sub
 
 ' Plan radar-v2 E4: jefes con su icono (formato extendido, igual que eNpcRadarNpcSymbol).

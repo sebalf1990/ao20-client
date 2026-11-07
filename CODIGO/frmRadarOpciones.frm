@@ -2,14 +2,14 @@ VERSION 5.00
 Begin VB.Form frmRadarOpciones
    BorderStyle     =   3  'Fixed Dialog
    Caption         =   "Opciones del radar"
-   ClientHeight    =   4980
+   ClientHeight    =   5640
    ClientLeft      =   45
    ClientTop       =   390
    ClientWidth     =   4800
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   4980
+   ScaleHeight     =   5640
    ScaleWidth      =   4800
    ShowInTaskbar   =   0   'False
    StartUpPosition =   1  'CenterOwner
@@ -18,7 +18,7 @@ Begin VB.Form frmRadarOpciones
       Height          =   375
       Left            =   1800
       TabIndex        =   10
-      Top             =   4440
+      Top             =   5100
       Width           =   1200
    End
    Begin VB.CommandButton cmdRadarGm
@@ -26,7 +26,7 @@ Begin VB.Form frmRadarOpciones
       Height          =   375
       Left            =   2460
       TabIndex        =   9
-      Top             =   3900
+      Top             =   4560
       Visible         =   0   'False
       Width           =   2220
    End
@@ -35,8 +35,24 @@ Begin VB.Form frmRadarOpciones
       Height          =   375
       Left            =   120
       TabIndex        =   8
-      Top             =   3900
+      Top             =   4560
       Width           =   2220
+   End
+   Begin VB.ComboBox cmbPing
+      Height          =   315
+      Left            =   2160
+      Style           =   2  'Dropdown List
+      TabIndex        =   18
+      Top             =   4080
+      Width           =   2520
+   End
+   Begin VB.CheckBox chkMarcas
+      Caption         =   "Marcas de la party"
+      Height          =   255
+      Left            =   240
+      TabIndex        =   17
+      Top             =   3780
+      Width           =   4300
    End
    Begin VB.CheckBox chkJefes
       Caption         =   "Jefes (con detectar NPCs)"
@@ -101,6 +117,14 @@ Begin VB.Form frmRadarOpciones
       TabIndex        =   1
       Top             =   540
       Width           =   2520
+   End
+   Begin VB.Label lblPing
+      Caption         =   "Marcar un punto"
+      Height          =   255
+      Left            =   120
+      TabIndex        =   19
+      Top             =   4125
+      Width           =   1980
    End
    Begin VB.Label lblCapas
       Caption         =   "Mostrar en el minimapa:"
@@ -173,6 +197,10 @@ Private Sub Form_Load()
     Call cmbPaleta.AddItem("Normal")
     Call cmbPaleta.AddItem("Alto contraste")
     Call cmbPaleta.AddItem("Daltónico")
+    Call cmbPing.AddItem("Apagado")
+    Call cmbPing.AddItem("Shift + clic izquierdo")
+    Call cmbPing.AddItem("Ctrl + clic izquierdo")
+    Call cmbPing.AddItem("Clic derecho (no GM)")
     Call LoadControlsFromOptions
     cmdRadarGm.visible = IsLocalUserGm()
     loadingOptions = False
@@ -203,6 +231,12 @@ Private Sub LoadControlsFromOptions()
     chkQuests.value = BoolToCheck(RadarShowQuests)
     chkSimbolos.value = BoolToCheck(RadarShowSymbols)
     chkJefes.value = BoolToCheck(RadarShowBosses)
+    chkMarcas.value = BoolToCheck(RadarShowPings)
+    If RadarPingButton <= 3 Then
+        cmbPing.ListIndex = RadarPingButton
+    Else
+        cmbPing.ListIndex = 1
+    End If
 End Sub
 
 Private Function BoolToCheck(ByVal flag As Boolean) As Integer
@@ -282,6 +316,20 @@ End Sub
 
 Private Sub chkJefes_Click()
     Call SaveCheck("RadarShowBosses", chkJefes)
+End Sub
+
+Private Sub chkMarcas_Click()
+    Call SaveCheck("RadarShowPings", chkMarcas)
+End Sub
+
+Private Sub cmbPing_Click()
+    On Error GoTo cmbPing_Click_Err
+    If loadingOptions Then Exit Sub
+    Call SaveSetting("OPCIONES", "RadarPingButton", CStr(cmbPing.ListIndex))
+    Call ReloadRadarColors
+    Exit Sub
+cmbPing_Click_Err:
+    Call RegistrarError(Err.Number, Err.Description, "frmRadarOpciones.cmbPing_Click", Erl)
 End Sub
 
 Private Sub cmdRestaurar_Click()

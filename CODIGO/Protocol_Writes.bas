@@ -6010,3 +6010,16 @@ WriteGuardianHeartbeat_Err:
     Call Writer.Clear
     Call RegistrarError(Err.Number, Err.Description, "Argentum20.Protocol_Writes.WriteGuardianHeartbeat", Erl)
 End Sub
+
+' Plan radar-v2 E6: marcar un punto en el minimapa (lo ve la party del mismo mapa).
+Public Sub WriteMinimapPing(ByVal x As Byte, ByVal y As Byte)
+    On Error GoTo WriteMinimapPing_Err
+    Call Writer.WriteInt16(ClientPacketID.eMinimapPing)
+    Call Writer.WriteInt8(x)
+    Call Writer.WriteInt8(y)
+    Call modNetwork.send(Writer)
+    Exit Sub
+WriteMinimapPing_Err:
+    Call Writer.Clear
+    Call RegistrarError(Err.Number, Err.Description, "Argentum20.Protocol_Writes.WriteMinimapPing", Erl)
+End Sub

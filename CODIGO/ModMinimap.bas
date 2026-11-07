@@ -329,7 +329,30 @@ Public Sub RenderMinimapRadar()
     If RadarShowBosses Then Call DrawCenteredLayer(RadarJefe, RadarJefeCount, RadarFill_Jefe, RadarBorder_Jefe, 7, 5)
     If RadarShowClan Then Call DrawCenteredLayer(RadarClanMembers, RadarClanMembersCount, RadarFill_ClanMember, RadarBorder_ClanMember, total, fillSize)
     If RadarShowParty Then Call DrawCenteredLayer(RadarPartyMembers, RadarPartyMembersCount, RadarFill_PartyMember, RadarBorder_PartyMember, total, fillSize)
+    If RadarShowPings Then Call DrawCenteredPings
     Exit Sub
 RenderMinimapRadar_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModMinimap.RenderMinimapRadar", Erl)
+End Sub
+
+' Plan radar-v2 E6: marcas de party en el minimapa centrado (cuadrado hueco amarillo que late).
+Private Sub DrawCenteredPings()
+    Dim col(0 To 3) As RGBA
+    Call LongToRgba4(RGB(255, 255, 0), col)
+    Dim i As Long, side As Long
+    Dim px As Byte, py As Byte
+    Dim screenX As Long, screenY As Long
+    Dim half As Long
+    For i = 1 To MinimapPingSlots()
+        side = MinimapPingSize(i, px, py)
+        If side > 0 Then
+            If MinimapTileToScreen(px, py, screenX, screenY) Then
+                half = side \ 2
+                Call Batch_Textured_Box_File(screenX - half, screenY - half, 1, 1, 0, 0, "white_pixel.png", col, False, 0, side, 1)
+                Call Batch_Textured_Box_File(screenX - half, screenY + half, 1, 1, 0, 0, "white_pixel.png", col, False, 0, side, 1)
+                Call Batch_Textured_Box_File(screenX - half, screenY - half, 1, 1, 0, 0, "white_pixel.png", col, False, 0, 1, side)
+                Call Batch_Textured_Box_File(screenX + half, screenY - half, 1, 1, 0, 0, "white_pixel.png", col, False, 0, 1, side)
+            End If
+        End If
+    Next i
 End Sub

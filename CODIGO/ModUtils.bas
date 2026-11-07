@@ -74,6 +74,8 @@ Public RadarShowClan As Boolean
 Public RadarShowQuests As Boolean
 Public RadarShowSymbols As Boolean
 Public RadarShowBosses As Boolean
+Public RadarShowPings As Boolean       ' plan radar-v2 E6: mostrar las marcas de la party
+Public RadarPingButton As Byte         ' 0 apagado, 1 Shift+clic izq (default), 2 Ctrl+clic izq, 3 clic der (no GM)
 Public RadarPalette As Byte            ' 0 normal (radar_colors.ini), 1 alto contraste, 2 daltonico
 Public RadarPointSizeOption As Byte    ' 0 = el de radar_colors.ini; 1..3 = elegido en las opciones
 
@@ -102,6 +104,18 @@ Private RadarIconCustom1 As StdPicture
 Private RadarJefePic(1 To 255) As StdPicture
 Private RadarJefePicTried(1 To 255) As Boolean
 Private Const RADAR_JEFE_SIZE As Long = 7
+' Plan radar-v2 E6: marcas de party en el minimapa (5 s, laten).
+Private Type t_MinimapPing
+    x As Byte
+    y As Byte
+    startTick As Long
+End Type
+Private Const MINIMAP_PING_SLOTS As Long = 5
+Private Const MINIMAP_PING_MS As Long = 5000
+Private Const MINIMAP_PING_COOLDOWN_MS As Long = 3000
+Private MinimapPings(1 To MINIMAP_PING_SLOTS) As t_MinimapPing
+Private LastOwnPingTick As Long
+Private LastPingPhase As Long
 Public StopCreandoCuenta    As Boolean
 Public Const DegreeToRadian As Single = 0.01745329251994 'Pi / 180
 Public Const RadianToDegree As Single = 57.2958279087977 '180 / Pi
@@ -1337,6 +1351,7 @@ Public Sub DibujarMiniMapa()
         Call DrawRadarShape(RadarHostiles, RadarHostileCount, RadarFill_Hostile, RadarBorder_Hostile, RadarPointSize)
         If RadarShowBosses Then Call DrawJefeRadar(RadarJefe, RadarJefeIcono, RadarJefeCount, RadarFill_Jefe, RadarBorder_Jefe)
         If RadarShowClan Then Call DrawRadarShape(RadarClanMembers, RadarClanMembersCount, RadarFill_ClanMember, RadarBorder_ClanMember, RadarPointSize)
+        If RadarShowPings Then Call DrawMinimapPingsGdi
         If RadarShowParty Then Call DrawRadarShape(RadarPartyMembers, RadarPartyMembersCount, RadarFill_PartyMember, RadarBorder_PartyMember, RadarPointSize)
     End If
     ' Repintar siempre (asegura que se borre lo viejo cuando no hay nada para dibujar)
@@ -1758,6 +1773,7 @@ Public Sub LoadRadarColors()
     RadarPointSize = 3
     ' Capas visibles por defecto: si algo falla antes de ApplyRadarUserOptions no se oculta nada.
     RadarShowParty = True: RadarShowClan = True: RadarShowQuests = True: RadarShowSymbols = True: RadarShowBosses = True
+    RadarShowPings = True: RadarPingButton = 1
     Dim path As String
     path = App.path & "\radar_colors.ini"
     If FileExist(path, vbNormal) Then
@@ -1831,6 +1847,9 @@ Private Sub ApplyRadarUserOptions()
     RadarShowQuests = (GetSettingAsByte("OPCIONES", "RadarShowQuests", 1) <> 0)
     RadarShowSymbols = (GetSettingAsByte("OPCIONES", "RadarShowSymbols", 1) <> 0)
     RadarShowBosses = (GetSettingAsByte("OPCIONES", "RadarShowBosses", 1) <> 0)
+    RadarShowPings = (GetSettingAsByte("OPCIONES", "RadarShowPings", 1) <> 0)
+    RadarPingButton = GetSettingAsByte("OPCIONES", "RadarPingButton", 1)
+    If RadarPingButton > 3 Then RadarPingButton = 1
     RadarPointSizeOption = GetSettingAsByte("OPCIONES", "RadarPointSize", 0)
     If RadarPointSizeOption >= 1 And RadarPointSizeOption <= 3 Then RadarPointSize = RadarPointSizeOption
     RadarPalette = GetSettingAsByte("OPCIONES", "RadarPalette", 0)
@@ -2830,4 +2849,161 @@ Public Sub PlayQuestFinalDescAudio(ByVal questIndex As Integer)
     audioFile = ResolveLocalizedAudioId(audioFile)
 
     Call ao20audio.PlayWav(audioFile, False, 0, 0, QUEST_DESC_AUDIO_LABEL)
+End Sub
+
+' ============================================================================
+' Marcar un punto (plan 2026-11-07-radar-v2, E6)
+' ============================================================================
+
+' Que combinacion de clic marca un punto segun la opcion del jugador. El GM conserva el clic derecho
+' para el teleport, asi que la opcion 3 no aplica a un GM.
+Public Function IsMinimapPingClick(ByVal Button As Integer, ByVal Shift As Integer) As Boolean
+    Select Case RadarPingButton
+        Case 1: IsMinimapPingClick = (Button = vbLeftButton And (Shift And vbShiftMask) <> 0)
+        Case 2: IsMinimapPingClick = (Button = vbLeftButton And (Shift And vbCtrlMask) <> 0)
+        Case 3: IsMinimapPingClick = (Button = vbRightButton And Not IsLocalUserGmForRadar())
+    End Select
+End Function
+
+Private Function IsLocalUserGmForRadar() As Boolean
+    On Error GoTo IsLocalUserGmForRadar_Err
+    If UserCharIndex > 0 Then IsLocalUserGmForRadar = (charlist(UserCharIndex).priv > 0)
+    Exit Function
+IsLocalUserGmForRadar_Err:
+    IsLocalUserGmForRadar = False
+End Function
+
+' Marca propia: se ve al instante y se manda al server (que se la pasa a la party del mismo mapa).
+Public Sub RequestMinimapPing(ByVal tileX As Single, ByVal tileY As Single)
+    On Error GoTo RequestMinimapPing_Err
+    Dim nowTick As Long
+    nowTick = GetTickCountRaw()
+    If LastOwnPingTick <> 0 Then
+        If TicksElapsed(LastOwnPingTick, nowTick) < MINIMAP_PING_COOLDOWN_MS Then Exit Sub
+    End If
+    LastOwnPingTick = nowTick
+    If LastOwnPingTick = 0 Then LastOwnPingTick = 1
+    If tileX < 1 Then tileX = 1
+    If tileX > 100 Then tileX = 100
+    If tileY < 1 Then tileY = 1
+    If tileY > 100 Then tileY = 100
+    Call AddMinimapPing(CByte(tileX), CByte(tileY))
+    Call WriteMinimapPing(CByte(tileX), CByte(tileY))
+    Exit Sub
+RequestMinimapPing_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModUtils.RequestMinimapPing", Erl)
+End Sub
+
+Public Sub AddMinimapPing(ByVal x As Byte, ByVal y As Byte)
+    Dim i As Long
+    Dim slot As Long
+    Dim oldest As Double
+    Dim age As Double
+    Dim nowTick As Long
+    nowTick = GetTickCountRaw()
+    slot = 1
+    oldest = -1
+    For i = 1 To MINIMAP_PING_SLOTS
+        If MinimapPings(i).startTick = 0 Then
+            slot = i
+            Exit For
+        End If
+        age = TicksElapsed(MinimapPings(i).startTick, nowTick)
+        If age > oldest Then
+            oldest = age
+            slot = i
+        End If
+    Next i
+    MinimapPings(slot).x = x
+    MinimapPings(slot).y = y
+    MinimapPings(slot).startTick = nowTick
+    If MinimapPings(slot).startTick = 0 Then MinimapPings(slot).startTick = 1
+    MinimapRadarDirty = True
+End Sub
+
+' True cuando hay que redibujar el minimapa clasico por las marcas: cada 200 ms mientras alguna late (cambia
+' de tamano) y una vez mas cuando vence, para borrarla. No redibuja en cada frame.
+Public Function MinimapPingsNeedRedraw() As Boolean
+    Dim i As Long
+    Dim nowTick As Long
+    Dim anyAlive As Boolean
+    Dim phase As Long
+    nowTick = GetTickCountRaw()
+    For i = 1 To MINIMAP_PING_SLOTS
+        If MinimapPings(i).startTick <> 0 Then
+            If TicksElapsed(MinimapPings(i).startTick, nowTick) < MINIMAP_PING_MS Then
+                anyAlive = True
+            Else
+                MinimapPings(i).startTick = 0
+                MinimapPingsNeedRedraw = True
+            End If
+        End If
+    Next i
+    If Not anyAlive Then Exit Function
+    phase = CLng(Int((nowTick And &H7FFFFFFF) / 200#))
+    If phase <> LastPingPhase Then
+        LastPingPhase = phase
+        MinimapPingsNeedRedraw = True
+    End If
+End Function
+
+' Al cambiar de mapa las marcas del mapa anterior ya no valen.
+Public Sub ClearMinimapPings()
+    Dim i As Long
+    For i = 1 To MINIMAP_PING_SLOTS
+        MinimapPings(i).startTick = 0
+    Next i
+End Sub
+
+' Lado del cuadrado de la marca: late entre 5, 7 y 9 px. 0 si no hay marca en ese slot.
+Public Function MinimapPingSize(ByVal slot As Long, ByRef x As Byte, ByRef y As Byte) As Long
+    If slot < 1 Or slot > MINIMAP_PING_SLOTS Then Exit Function
+    If MinimapPings(slot).startTick = 0 Then Exit Function
+    Dim age As Double
+    age = TicksElapsed(MinimapPings(slot).startTick, GetTickCountRaw())
+    If age >= MINIMAP_PING_MS Then Exit Function
+    x = MinimapPings(slot).x
+    y = MinimapPings(slot).y
+    MinimapPingSize = 5 + 2 * (CLng(Int(age / 200)) Mod 3)
+End Function
+
+Public Function MinimapPingSlots() As Long
+    MinimapPingSlots = MINIMAP_PING_SLOTS
+End Function
+
+' Marca en el minimapa clasico: cuadrado hueco amarillo con borde negro.
+Private Sub DrawMinimapPingsGdi()
+    On Error GoTo DrawMinimapPingsGdi_Err
+    Dim hdc As Long
+    hdc = frmMain.MiniMap.hdc
+    Dim i As Long, side As Long
+    Dim px As Byte, py As Byte
+    Dim rPx As Single, rPy As Single
+    Dim ox As Long, oy As Long
+    Dim d As Long
+    For i = 1 To MINIMAP_PING_SLOTS
+        side = MinimapPingSize(i, px, py)
+        If side > 0 Then
+            rPx = px
+            rPy = py
+            Call ConvertToMinimapPosition(rPx, rPy, CSng(side), CSng(side))
+            ox = CLng(rPx)
+            oy = CLng(rPy)
+            For d = 0 To side - 1
+                Call SetPixel(hdc, ox + d, oy, RGB(255, 255, 0))
+                Call SetPixel(hdc, ox + d, oy + side - 1, RGB(255, 255, 0))
+                Call SetPixel(hdc, ox, oy + d, RGB(255, 255, 0))
+                Call SetPixel(hdc, ox + side - 1, oy + d, RGB(255, 255, 0))
+                If d > 0 And d < side - 1 Then
+                    Call SetPixel(hdc, ox + d, oy + 1, RGB(0, 0, 0))
+                    Call SetPixel(hdc, ox + d, oy + side - 2, RGB(0, 0, 0))
+                    Call SetPixel(hdc, ox + 1, oy + d, RGB(0, 0, 0))
+                    Call SetPixel(hdc, ox + side - 2, oy + d, RGB(0, 0, 0))
+                End If
+            Next d
+        End If
+    Next i
+    Exit Sub
+DrawMinimapPingsGdi_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModUtils.DrawMinimapPingsGdi", Erl)
 End Sub
