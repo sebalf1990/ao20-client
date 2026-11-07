@@ -2083,6 +2083,10 @@ Public Sub start()
                     If frmMain.MiniMap.visible = True And CenteredMinimap <> 0 Then
                         Call DrawCenteredMinimap
                     End If
+                    If MinimapRadarDirty Then
+                        MinimapRadarDirty = False
+                        Call DibujarMiniMapa
+                    End If
                     'Utilizo un boolean, para evitar utilizar la propiedad .visible de los formularios, ya que aparentemente instancia el form y baja la performance.
                     If bSkins Then
                         DrawInventorySkins

@@ -6502,7 +6502,7 @@ Private Sub ReadRadarPacket(ByRef arr() As t_RadarHostile, ByRef countOut As Int
             discard = Reader.ReadInt8()
         End If
     Next i
-    Call DibujarMiniMapa
+    MinimapRadarDirty = True
 End Sub
 
 ' Helper privado para parsear el paquete extendido eNpcRadarQuestNpc (X, Y, State por NPC).
@@ -6524,7 +6524,7 @@ Private Sub ReadRadarQuestNpcPacket(ByRef arr() As t_RadarHostile, ByRef states(
             discard = Reader.ReadInt8()
         End If
     Next i
-    Call DibujarMiniMapa
+    MinimapRadarDirty = True
 End Sub
 
 Private Sub HandleNpcRadar()
