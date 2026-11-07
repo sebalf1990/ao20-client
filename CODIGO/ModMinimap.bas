@@ -138,6 +138,7 @@ Public Sub RenderMinimapCentered(ByVal currentMap As Integer, ByVal tileX As Int
     
     Call Batch_Textured_Box_File(0, 0, srcW, srcH, srcX, srcY, minimapFile, COLOR_WHITE, False, 0, CSng(destW) / CSng(srcW), CSng(destH) / CSng(srcH))
        
+    Call RenderMinimapRadar   ' plan radar-v2 E5: debajo del punto propio
     Call RenderMinimapDots
        
     Call Engine_EndScene(DestRect, frmMain.MiniMap.hWnd)
@@ -209,4 +210,126 @@ Public Sub InitMinimapDotColors()
     SetRGBA MinimapDots(5).dotColor(1), 0, 0, 255
     SetRGBA MinimapDots(5).dotColor(2), 0, 0, 255
     SetRGBA MinimapDots(5).dotColor(3), 255, 255, 0
+End Sub
+
+' ============================================================================
+' Plan radar-v2 E5: radar en el minimapa centrado (DirectX). Mismas capas, colores y tamano de punto
+' que el minimapa clasico (ModUtils.DibujarMiniMapa). Los iconos (quest, sacerdote/banquero, jefe)
+' van como puntos del color de su simbolo; el jefe, como punto grande.
+' ============================================================================
+
+' Casillero del mapa -> pixel del control en el recorte actual (MinimapVP_*). False si queda afuera.
+Public Function MinimapTileToScreen(ByVal tileX As Long, ByVal tileY As Long, ByRef screenX As Long, ByRef screenY As Long) As Boolean
+    If MinimapVP_SrcW <= 0 Or MinimapVP_SrcH <= 0 Then Exit Function
+    Dim worldX As Double, worldY As Double
+    worldX = (MinimapVP_MapGridX + (tileX - MINIMAP_MIN_TILE_X + 0.5) / MINIMAP_TILE_COUNT_X) * MinimapVP_CellPxW
+    worldY = (MinimapVP_MapGridY + (tileY - MINIMAP_MIN_TILE_Y + 0.5) / MINIMAP_TILE_COUNT_Y) * MinimapVP_CellPxH
+    screenX = CLng((worldX - MinimapVP_SrcX) * MinimapVP_DestW / MinimapVP_SrcW)
+    screenY = CLng((worldY - MinimapVP_SrcY) * MinimapVP_DestH / MinimapVP_SrcH)
+    MinimapTileToScreen = (screenX >= 0 And screenY >= 0 And screenX < MinimapVP_DestW And screenY < MinimapVP_DestH)
+End Function
+
+' Pixel del control -> casillero del mapa (inverso de MinimapTileToScreen). False sin recorte valido.
+Public Function MinimapScreenToTile(ByVal screenX As Single, ByVal screenY As Single, ByRef tileX As Single, ByRef tileY As Single) As Boolean
+    If MinimapVP_SrcW <= 0 Or MinimapVP_SrcH <= 0 Or MinimapVP_DestW <= 0 Or MinimapVP_DestH <= 0 Then Exit Function
+    If MinimapVP_CellPxW <= 0 Or MinimapVP_CellPxH <= 0 Then Exit Function
+    Dim worldX As Double, worldY As Double
+    worldX = MinimapVP_SrcX + screenX * MinimapVP_SrcW / MinimapVP_DestW
+    worldY = MinimapVP_SrcY + screenY * MinimapVP_SrcH / MinimapVP_DestH
+    tileX = CSng(MINIMAP_MIN_TILE_X + (worldX / MinimapVP_CellPxW - MinimapVP_MapGridX) * MINIMAP_TILE_COUNT_X - 0.5)
+    tileY = CSng(MINIMAP_MIN_TILE_Y + (worldY / MinimapVP_CellPxH - MinimapVP_MapGridY) * MINIMAP_TILE_COUNT_Y - 0.5)
+    If tileX < 1 Then tileX = 1
+    If tileX > 100 Then tileX = 100
+    If tileY < 1 Then tileY = 1
+    If tileY > 100 Then tileY = 100
+    MinimapScreenToTile = True
+End Function
+
+Private Sub LongToRgba4(ByVal colorValue As Long, ByRef out() As RGBA)
+    Dim i As Long
+    For i = 0 To 3
+        Call SetRGBA(out(i), CByte(colorValue And &HFF&), CByte((colorValue \ &H100&) And &HFF&), CByte((colorValue \ &H10000) And &HFF&))
+    Next i
+End Sub
+
+Private Sub DrawCenteredSquare(ByVal screenX As Long, ByVal screenY As Long, ByVal size As Long, ByRef col() As RGBA)
+    Call Batch_Textured_Box_File(screenX - size \ 2, screenY - size \ 2, 1, 1, 0, 0, "white_pixel.png", col, False, 0, size, size)
+End Sub
+
+Private Sub DrawCenteredPointRgba(ByVal tileX As Long, ByVal tileY As Long, ByRef fillCol() As RGBA, ByRef borderCol() As RGBA, ByVal total As Long, ByVal fillSize As Long)
+    Dim screenX As Long, screenY As Long
+    If Not MinimapTileToScreen(tileX, tileY, screenX, screenY) Then Exit Sub
+    Call DrawCenteredSquare(screenX, screenY, total, borderCol)
+    Call DrawCenteredSquare(screenX, screenY, fillSize, fillCol)
+End Sub
+
+' Punto con color propio (quest/simbolos: el color depende de cada NPC).
+Private Sub DrawCenteredPoint(ByVal tileX As Long, ByVal tileY As Long, ByVal fillColor As Long, ByVal borderColor As Long, ByVal total As Long, ByVal fillSize As Long)
+    Dim fillCol(0 To 3) As RGBA
+    Dim borderCol(0 To 3) As RGBA
+    Call LongToRgba4(fillColor, fillCol)
+    Call LongToRgba4(borderColor, borderCol)
+    Call DrawCenteredPointRgba(tileX, tileY, fillCol, borderCol, total, fillSize)
+End Sub
+
+' Capa de un solo color: convierte los colores una vez para todos los puntos.
+Private Sub DrawCenteredLayer(ByRef arr() As t_RadarHostile, ByVal pointCount As Integer, ByVal fillColor As Long, ByVal borderColor As Long, ByVal total As Long, ByVal fillSize As Long)
+    If pointCount <= 0 Then Exit Sub
+    Dim fillCol(0 To 3) As RGBA
+    Dim borderCol(0 To 3) As RGBA
+    Call LongToRgba4(fillColor, fillCol)
+    Call LongToRgba4(borderColor, borderCol)
+    Dim k As Long
+    For k = 1 To pointCount
+        Call DrawCenteredPointRgba(arr(k).x, arr(k).y, fillCol, borderCol, total, fillSize)
+    Next k
+End Sub
+
+Public Sub RenderMinimapRadar()
+    On Error GoTo RenderMinimapRadar_Err
+    Dim total As Long, fillSize As Long
+    Select Case RadarPointSize
+        Case 1: total = 3: fillSize = 1
+        Case 2: total = 4: fillSize = 2
+        Case Else: total = 5: fillSize = 3
+    End Select
+    Dim k As Long
+    Dim symColor As Long
+    Call DrawCenteredLayer(RadarNeutralNpc, RadarNeutralNpcCount, RadarFill_NeutralNpc, RadarBorder_NeutralNpc, total, fillSize)
+    If RadarShowQuests Then
+        For k = 1 To RadarQuestNpcCount
+            Select Case RadarQuestNpcState(k)
+                Case 1: symColor = RadarQuestSymbol_Available
+                Case 2: symColor = RadarQuestSymbol_InProgress
+                Case 3: symColor = RadarQuestSymbol_Ready
+                Case Else: symColor = RadarFill_QuestNpc
+            End Select
+            Call DrawCenteredPoint(RadarQuestNpc(k).x, RadarQuestNpc(k).y, symColor, RadarBorder_QuestNpc, total, fillSize)
+        Next k
+    End If
+    If RadarShowSymbols Then
+        For k = 1 To RadarNpcSymbolCount
+            Select Case RadarNpcSymbolSubtype(k)
+                Case 1: symColor = RadarNpcSymbol_Sacerdote
+                Case 2: symColor = RadarNpcSymbol_Banquero
+                Case Else: symColor = RadarFill_NeutralNpc
+            End Select
+            Call DrawCenteredPoint(RadarNpcSymbol(k).x, RadarNpcSymbol(k).y, symColor, RGB(0, 0, 0), total, fillSize)
+        Next k
+    End If
+    Call DrawCenteredLayer(RadarGuardiaReal, RadarGuardiaRealCount, RadarFill_GuardiaReal, RadarBorder_GuardiaReal, total, fillSize)
+    Call DrawCenteredLayer(RadarGuardiaCaos, RadarGuardiaCaosCount, RadarFill_GuardiaCaos, RadarBorder_GuardiaCaos, total, fillSize)
+    Call DrawCenteredLayer(RadarMascota, RadarMascotaCount, RadarFill_Mascota, RadarBorder_Mascota, total, fillSize)
+    Call DrawCenteredLayer(RadarUserCiudadano, RadarUserCiudadanoCount, RadarFill_UserCiudadano, RadarBorder_UserCiudadano, total, fillSize)
+    Call DrawCenteredLayer(RadarUserCriminal, RadarUserCriminalCount, RadarFill_UserCriminal, RadarBorder_UserCriminal, total, fillSize)
+    Call DrawCenteredLayer(RadarUserImperial, RadarUserImperialCount, RadarFill_UserImperial, RadarBorder_UserImperial, total, fillSize)
+    Call DrawCenteredLayer(RadarUserCaos, RadarUserCaosCount, RadarFill_UserCaos, RadarBorder_UserCaos, total, fillSize)
+    Call DrawCenteredLayer(RadarUserGm, RadarUserGmCount, RadarFill_UserGm, RadarBorder_UserGm, total, fillSize)
+    Call DrawCenteredLayer(RadarHostiles, RadarHostileCount, RadarFill_Hostile, RadarBorder_Hostile, total, fillSize)
+    If RadarShowBosses Then Call DrawCenteredLayer(RadarJefe, RadarJefeCount, RadarFill_Jefe, RadarBorder_Jefe, 7, 5)
+    If RadarShowClan Then Call DrawCenteredLayer(RadarClanMembers, RadarClanMembersCount, RadarFill_ClanMember, RadarBorder_ClanMember, total, fillSize)
+    If RadarShowParty Then Call DrawCenteredLayer(RadarPartyMembers, RadarPartyMembersCount, RadarFill_PartyMember, RadarBorder_PartyMember, total, fillSize)
+    Exit Sub
+RenderMinimapRadar_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModMinimap.RenderMinimapRadar", Erl)
 End Sub
