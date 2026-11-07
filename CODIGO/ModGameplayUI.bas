@@ -770,6 +770,15 @@ Public Sub SelectSpellTab()
 End Sub
 
 Public Sub GetMinimapPosition(ByRef x As Single, ByRef y As Single)
+    ' Plan radar-v2 E5 (H8): en modo centrado el control muestra un recorte con zoom del mundo.
+    If CenteredMinimap <> 0 Then
+        Dim tileX As Single, tileY As Single
+        If MinimapScreenToTile(x, y, tileX, tileY) Then
+            x = tileX
+            y = tileY
+            Exit Sub
+        End If
+    End If
     x = x * (100 - 2 * HalfWindowTileWidth - 4) / 100 + HalfWindowTileWidth + 2
     y = y * (100 - 2 * HalfWindowTileHeight - 4) / 100 + HalfWindowTileHeight + 2
 End Sub
