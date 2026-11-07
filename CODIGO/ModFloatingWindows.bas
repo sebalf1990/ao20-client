@@ -233,11 +233,23 @@ Private Sub LoadOneWindow(ByVal windowId As e_FloatingWindowId, ByVal defaultLef
     Set ctl = WindowCtl(windowId)
     ctl.Width = FLOAT_W
     ctl.Height = FLOAT_H
-    ctl.Left = CLng(val(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Left", CStr(defaultLeft))))
-    ctl.Top = CLng(val(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Top", CStr(defaultTop))))
+    ctl.Left = ParseLayoutCoord(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Left", CStr(defaultLeft)), defaultLeft)
+    ctl.Top = ParseLayoutCoord(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Top", CStr(defaultTop)), defaultTop)
     g_pinned(windowId) = (val(GetVarOrDefault(LayoutPath(), SectionName(windowId), "Pinned", "0")) <> 0)
     Call ClampWindowToViewport(ctl)
 End Sub
+
+' E1: valida el rango antes de CLng (un valor enorme en el ini desbordaba y salteaba Pinned/clamp).
+Private Function ParseLayoutCoord(ByVal rawValue As String, ByVal defaultValue As Long) As Long
+    Const COORD_LIMIT As Double = 20000
+    Dim parsed As Double
+    parsed = val(rawValue)
+    If parsed < -COORD_LIMIT Or parsed > COORD_LIMIT Then
+        ParseLayoutCoord = defaultValue
+    Else
+        ParseLayoutCoord = CLng(parsed)
+    End If
+End Function
 
 Private Sub SaveFloatingWindowState(ByVal windowId As e_FloatingWindowId)
     On Error GoTo SaveFloatingWindowState_Err

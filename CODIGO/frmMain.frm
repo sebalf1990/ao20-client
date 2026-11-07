@@ -1629,6 +1629,11 @@ Public bmoving                     As Boolean
 Public dx                          As Integer
 Public dy                          As Integer
 Private Const IntervaloEntreClicks As Long = 50
+' E1: clic cuyo MouseDown fue consumido por el HUD FULL; el MouseUp no debe actuar sobre el mundo.
+Private Const CLICK_NONE     As Byte = 0
+Private Const CLICK_CONSUMED As Byte = 1
+Private Const CLICK_AVATAR   As Byte = 2
+Private m_consumedClick      As Byte
 Dim TempTick                       As Long
 Private iClickTick                 As Long
 Private suppressNextLaunchClick    As Boolean
@@ -3514,6 +3519,12 @@ Private Sub renderer_MouseUp(Button As Integer, Shift As Integer, x As Single, y
     clicX = x
     clicY = y
     
+    Dim consumedKind As Byte
+    If Button = vbLeftButton Then
+        consumedKind = m_consumedClick
+        m_consumedClick = CLICK_NONE
+    End If
+
     Dim MouseAction As e_MouseAction
     Select Case Button
         Case vbLeftButton:  MouseAction = ACCION1
@@ -3523,12 +3534,12 @@ Private Sub renderer_MouseUp(Button As Integer, Shift As Integer, x As Single, y
     End Select
 
     ' Plan 21.002 V9.12: click sobre el avatar (top-left FULL) abre estadisticas
-    If Button = vbLeftButton And ViewportDebug_IsFullscreen() Then
-        If HudAvatar_HitTest(CLng(x), CLng(y)) Then
-            Call HudAvatar_OpenStats
-            Exit Sub
-        End If
+    ' E1: solo si el MouseDown tambien cayo en el avatar; si lo consumio la barra GM o la consola, no hacer nada.
+    If consumedKind = CLICK_AVATAR Then
+        If HudAvatar_HitTest(CLng(x), CLng(y)) Then Call HudAvatar_OpenStats
+        Exit Sub
     End If
+    If consumedKind = CLICK_CONSUMED Then Exit Sub
 
     If Button = vbMiddleButton Then
         Dim HkMidSlot As Integer
@@ -3647,11 +3658,22 @@ End Sub
 Private Sub renderer_MouseDown(Button As Integer, Shift As Integer, x As Single, y As Single)
     On Error GoTo renderer_MouseDown_Err
     ' V9.5: barra GM al top consume el click si cae adentro
+    If Button = vbLeftButton Then m_consumedClick = CLICK_NONE
     If Is_FullscreenGmBarActive() And Button = vbLeftButton Then
-        If Handle_GmBarClick(CLng(x), CLng(y)) Then Exit Sub
+        If Handle_GmBarClick(CLng(x), CLng(y)) Then
+            m_consumedClick = CLICK_CONSUMED
+            Exit Sub
+        End If
     End If
     If ViewportDebug_IsFullscreen() And Button = vbLeftButton Then
-        If ViewportDebug_HandleMouseDown(CLng(x), CLng(y)) Then Exit Sub
+        If ViewportDebug_HandleMouseDown(CLng(x), CLng(y)) Then
+            m_consumedClick = CLICK_CONSUMED
+            Exit Sub
+        End If
+        If HudAvatar_HitTest(CLng(x), CLng(y)) Then
+            m_consumedClick = CLICK_AVATAR
+            Exit Sub
+        End If
     End If
     ' Sincroniza el tile objetivo con la posicion exacta del cursor al comenzar el click dentro del render.
     mouseX = x

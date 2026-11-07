@@ -42,6 +42,8 @@ Global G_LastSelectedSlot As Integer
 Global G_LasSelectedObjIndex As Integer
 
 Public Sub SetupGameplayUI()
+    ' E1: red de seguridad si quedo FULL de una sesion cortada sin pasar por Disconnect.
+    Call Restore_ClassicAfterDisconnect
     frmMain.shapexy.Left = 1200
     frmMain.shapexy.Top = 1200
     frmMain.shapexy.BackColor = RGB(170, 0, 0)
@@ -890,7 +892,6 @@ Public Sub EnterViewportFullscreen()
     On Error GoTo EnterViewportFullscreen_Err
     If g_renderer_state_saved Then Exit Sub
     Call ViewportDebug_AppendDiagLog("[Enter] start")
-    g_renderer_state_saved = True
     Call SetViewportLogicalFull
     Call ClearRendererClip
     frmMain.renderer.ZOrder 0
@@ -915,6 +916,8 @@ Public Sub EnterViewportFullscreen()
     Call Recalc_TileEngine_Viewport
     Call ViewportDebug_AppendDiagLog("[Enter] recalc done")
     Call ViewportDebug_SetViewportMode(True)
+    ' E1: el flag se marca recien con el layout aplicado (antes quedaba True si algo fallaba a mitad).
+    g_renderer_state_saved = True
     Call ViewportDebug_AppendDiagLog("[Enter] OK")
     Exit Sub
 EnterViewportFullscreen_Err:
@@ -954,6 +957,21 @@ End Function
 
 Public Sub Mark_PendingRestoreFullscreen()
     g_pending_restore_full = True
+End Sub
+
+' E1: camino generico de corte de sesion (Disconnect, timeout, kick, LogOut). Idempotente:
+' si ya estamos en HUD clasico no hace nada. Conserva el auto-restore del FULL al reloguear.
+Public Sub Restore_ClassicAfterDisconnect()
+    On Error GoTo Restore_ClassicAfterDisconnect_Err
+    Call ResetAllCd
+    If g_renderer_state_saved Then
+        Call ViewportDebug_AppendDiagLog("[Disconnect] FULL activo, vuelvo a HUD clasico")
+        g_pending_restore_full = True
+        Call ExitViewportFullscreen
+    End If
+    Exit Sub
+Restore_ClassicAfterDisconnect_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModGameplayUI.Restore_ClassicAfterDisconnect", Erl)
 End Sub
 
 Public Sub Try_RestoreFullscreenAfterLogin()

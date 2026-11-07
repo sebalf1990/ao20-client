@@ -122,13 +122,13 @@ End Sub
 
 Private Sub Render_HudHeadZoomed(ByVal cx As Long, ByVal cy As Long, ByVal r As Long)
     On Error Resume Next
-    If UserCharIndex <= 0 Then Exit Sub
+    If UserCharIndex <= 0 Or UserCharIndex > LastChar Then Exit Sub
     Dim headGrh As Long
     headGrh = charlist(UserCharIndex).Head.Head(E_Heading.south).GrhIndex
     If headGrh <= 0 Or headGrh > MaxGrh Then Exit Sub
     Dim frameGrh As Long
     frameGrh = GrhData(headGrh).Frames(1)
-    If frameGrh <= 0 Then Exit Sub
+    If frameGrh <= 0 Or frameGrh > MaxGrh Then Exit Sub
     Dim white(3) As RGBA
     Call RGBAList(white, 255, 255, 255, 255)
     Const ZOOM As Single = 2.6
@@ -209,7 +209,8 @@ Private Sub DrawBar(ByVal x As Long, ByVal y As Long, ByVal w As Long, ByVal h A
         cur = current
         If cur < 0 Then cur = 0
         If cur > maxVal Then cur = maxVal
-        fillW = w * cur \ maxVal
+        ' E1: en Double (w * cur desbordaba Long con EXP alta).
+        fillW = CLng(Int(CDbl(w) * CDbl(cur) / CDbl(maxVal)))
     End If
     If fillW > 0 Then
         Call Engine_Draw_Box(x, y, fillW, h, color)
@@ -284,6 +285,7 @@ Private Sub RenderHudGlyphLine(ByVal text As String, _
     Dim grhIndex As Long
     Dim drawX As Long
     Dim charW As Long
+    Dim frameIdx As Long
 
     drawX = x
 
@@ -293,10 +295,11 @@ Private Sub RenderHudGlyphLine(ByVal text As String, _
             drawX = drawX + 4
         Else
             grhIndex = Fuentes(1).Caracteres(charCode)
-            If grhIndex > 12 Then
+            If grhIndex > 12 And grhIndex <= MaxGrh Then
                 Call Draw_GrhFont(grhIndex, drawX, y, textColor)
                 charW = 0
-                charW = GrhData(GrhData(grhIndex).Frames(1)).pixelWidth
+                frameIdx = GrhData(grhIndex).Frames(1)
+                If frameIdx > 0 And frameIdx <= MaxGrh Then charW = GrhData(frameIdx).pixelWidth
                 If charW <= 0 Then charW = GrhData(grhIndex).pixelWidth
                 If charW <= 0 Then charW = 6
                 drawX = drawX + charW

@@ -74,6 +74,8 @@ End Sub
 Public Sub Render_FullscreenButtons()
     On Error GoTo Err_h
     If Not g_buttons_active Then Exit Sub
+    Dim perfT As Double
+    perfT = Perf_FrameStart()
 
     With frmMain.picFullscreenButtons
         .BackColor = RGB(0, 0, 0)
@@ -105,6 +107,7 @@ Public Sub Render_FullscreenButtons()
         Call DrawButton(efbQuests, "boton-quests-over.bmp", "boton-quests-over.bmp")
         .Refresh
     End With
+    Call Perf_FrameAdd(PERF_PIECE_BUTTONS, perfT)
     Exit Sub
 Err_h:
     Call RegistrarError(Err.Number, Err.Description, "ModFullscreenButtons.Render_FullscreenButtons", Erl)

@@ -24,11 +24,17 @@ Public g_menu_alpha As Integer
 Public Sub MenuTransparency_EnsureLoaded()
     If g_menu_alpha > 0 Then Exit Sub
     Dim v As String
+    Dim parsedAlpha As Double
     v = GetSetting(APP_NAME, KEY_NAME)
-    If LenB(v) = 0 Or Not IsNumeric(v) Then v = CStr(ALPHA_DEF)
-    g_menu_alpha = CInt(v)
-    If g_menu_alpha < ALPHA_MIN Then g_menu_alpha = ALPHA_MIN
-    If g_menu_alpha > 255 Then g_menu_alpha = 255
+    ' E1: Val a Double + clamp 80..255 (CInt desbordaba con valores enormes y dejaba alpha 0).
+    If LenB(v) = 0 Or Not IsNumeric(v) Then
+        parsedAlpha = ALPHA_DEF
+    Else
+        parsedAlpha = val(v)
+    End If
+    If parsedAlpha < ALPHA_MIN Then parsedAlpha = ALPHA_MIN
+    If parsedAlpha > 255 Then parsedAlpha = 255
+    g_menu_alpha = CInt(parsedAlpha)
 End Sub
 
 Public Sub MenuTransparency_Set(ByVal value As Integer)
