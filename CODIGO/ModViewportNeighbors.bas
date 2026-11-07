@@ -128,22 +128,20 @@ Public Sub ViewportNeighbor_PrepareForMap(ByVal ResourceMap As Integer)
     On Error GoTo ViewportNeighbor_PrepareForMap_Err
 
     Dim direction As Integer
-    Dim targetMap As Integer
-    Dim sourceCoord As Integer
-    Dim destCoord As Integer
+    Dim targetMap(1 To 4) As Integer
+    Dim sourceCoord(1 To 4) As Integer
+    Dim destCoord(1 To 4) As Integer
 
     Call ViewportNeighbor_Clear
     g_cached_resource_map = ResourceMap
 
+    Call ViewportNeighbor_FindNeighbors(ResourceMap, targetMap, g_neighbor_count, sourceCoord, destCoord)
     For direction = DIR_NORTH To DIR_EAST
-        sourceCoord = 0
-        destCoord = 0
-        targetMap = ViewportNeighbor_FindDominantNeighbor(ResourceMap, direction, g_neighbor_count(direction), sourceCoord, destCoord)
-        If targetMap > 0 And g_neighbor_count(direction) >= NEIGHBOR_MIN_TE_COUNT Then
-            If ViewportNeighbor_LoadMap(direction, targetMap) Then
-                g_neighbor_map(direction) = targetMap
-                g_neighbor_source_coord(direction) = sourceCoord
-                g_neighbor_dest_coord(direction) = destCoord
+        If targetMap(direction) > 0 And g_neighbor_count(direction) >= NEIGHBOR_MIN_TE_COUNT Then
+            If ViewportNeighbor_LoadMap(direction, targetMap(direction)) Then
+                g_neighbor_map(direction) = targetMap(direction)
+                g_neighbor_source_coord(direction) = sourceCoord(direction)
+                g_neighbor_dest_coord(direction) = destCoord(direction)
                 g_neighbor_loaded(direction) = True
             End If
         End If
@@ -217,12 +215,15 @@ ViewportNeighbor_Clear_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_Clear", Erl)
 End Sub
 
-Private Function ViewportNeighbor_FindDominantNeighbor(ByVal ResourceMap As Integer, _
-                                                       ByVal direction As Integer, _
-                                                       ByRef bestCount As Integer, _
-                                                       ByRef bestSourceCoord As Integer, _
-                                                       ByRef bestDestCoord As Integer) As Integer
-    On Error GoTo ViewportNeighbor_FindDominantNeighbor_Err
+' E4b: una sola apertura del .csm actual y una sola pasada por su lista de TE para los 4 lados
+' (antes se abria 4 veces, una por direccion). Mismo criterio de desempate que antes: por lado gana
+' el primer mapa que alcanza el maximo de TE, recorriendo la lista en orden.
+Private Sub ViewportNeighbor_FindNeighbors(ByVal ResourceMap As Integer, _
+                                           ByRef bestMap() As Integer, _
+                                           ByRef bestCount() As Integer, _
+                                           ByRef bestSourceCoord() As Integer, _
+                                           ByRef bestDestCoord() As Integer)
+    On Error GoTo ViewportNeighbor_FindNeighbors_Err
 
     Dim fh      As Integer
     Dim MH      As tMapHeader
@@ -230,26 +231,29 @@ Private Function ViewportNeighbor_FindDominantNeighbor(ByVal ResourceMap As Inte
     Dim MD      As tMapDat
     Dim MapPath As String
     Dim TEs()   As tDatosTE
-    Dim counts(1 To MAX_MAP_ID_GUESS) As Integer
-    Dim sourceCounts(1 To MAP_MAX_TILES) As Integer
-    Dim destCounts(1 To MAP_MAX_TILES) As Integer
+    Dim counts(1 To 4, 1 To MAX_MAP_ID_GUESS) As Integer
+    Dim sourceCounts(1 To 4, 1 To MAP_MAX_TILES) As Integer
+    Dim destCounts(1 To 4, 1 To MAP_MAX_TILES) As Integer
     Dim i       As Long
     Dim mapId   As Integer
+    Dim direction As Integer
     Dim sourceCoord As Integer
     Dim destCoord As Integer
+    Dim csmSignature As Long
 
     MapPath = ViewportNeighbor_MapPath(ResourceMap)
-    If LenB(Dir$(MapPath)) = 0 Then Exit Function
+    If LenB(Dir$(MapPath)) = 0 Then Exit Sub
 
     fh = FreeFile
     Open MapPath For Binary As #fh
     ' Plan 15.001: this reader only knows the legacy 4-layer CSM. A five-layer
     ' file (signature W5L2, see Recursos.ReadCsmHeader) is skipped, not misread.
-    Dim csmSignature As Long
     Get #fh, , csmSignature
     If csmSignature = CSM_FIVE_LAYER_SIGNATURE_NEIGHBOR Then
         Close #fh
-        Exit Function
+        fh = 0
+        Call ViewportNeighbor_ReleaseMapFile(ResourceMap)
+        Exit Sub
     End If
     Seek #fh, 1
     Get #fh, , MH
@@ -260,45 +264,61 @@ Private Function ViewportNeighbor_FindDominantNeighbor(ByVal ResourceMap As Inte
     If MH.NumeroTE > 0 Then
         ReDim TEs(1 To MH.NumeroTE)
         Get #fh, , TEs
-        For i = 1 To MH.NumeroTE
-            mapId = TEs(i).DestM
-            If mapId > 0 And mapId <= MAX_MAP_ID_GUESS Then
+    End If
+    Close #fh
+    fh = 0
+    Call ViewportNeighbor_ReleaseMapFile(ResourceMap)
+    If MH.NumeroTE <= 0 Then Exit Sub
+
+    For i = 1 To MH.NumeroTE
+        mapId = TEs(i).DestM
+        If mapId > 0 And mapId <= MAX_MAP_ID_GUESS Then
+            For direction = DIR_NORTH To DIR_EAST
                 If ViewportNeighbor_IsCardinalTE(TEs(i), direction) Then
-                    counts(mapId) = counts(mapId) + 1
-                    If counts(mapId) > bestCount Then
-                        bestCount = counts(mapId)
-                        ViewportNeighbor_FindDominantNeighbor = mapId
+                    counts(direction, mapId) = counts(direction, mapId) + 1
+                    If counts(direction, mapId) > bestCount(direction) Then
+                        bestCount(direction) = counts(direction, mapId)
+                        bestMap(direction) = mapId
                     End If
                 End If
-            End If
-        Next i
+            Next direction
+        End If
+    Next i
 
-        If ViewportNeighbor_FindDominantNeighbor > 0 Then
-            For i = 1 To MH.NumeroTE
-                If TEs(i).DestM = ViewportNeighbor_FindDominantNeighbor Then
+    For i = 1 To MH.NumeroTE
+        For direction = DIR_NORTH To DIR_EAST
+            If bestMap(direction) > 0 Then
+                If TEs(i).DestM = bestMap(direction) Then
                     If ViewportNeighbor_IsCardinalTE(TEs(i), direction) Then
                         Call ViewportNeighbor_TECoords(TEs(i), direction, sourceCoord, destCoord)
                         If sourceCoord >= XMinMapSize And sourceCoord <= XMaxMapSize Then
-                            sourceCounts(sourceCoord) = sourceCounts(sourceCoord) + 1
+                            sourceCounts(direction, sourceCoord) = sourceCounts(direction, sourceCoord) + 1
                         End If
                         If destCoord >= XMinMapSize And destCoord <= XMaxMapSize Then
-                            destCounts(destCoord) = destCounts(destCoord) + 1
+                            destCounts(direction, destCoord) = destCounts(direction, destCoord) + 1
                         End If
                     End If
                 End If
-            Next i
-            bestSourceCoord = ViewportNeighbor_MostUsedCoord(sourceCounts)
-            bestDestCoord = ViewportNeighbor_MostUsedCoord(destCounts)
-        End If
-    End If
+            End If
+        Next direction
+    Next i
 
-    Close #fh
-    Exit Function
-ViewportNeighbor_FindDominantNeighbor_Err:
+    For direction = DIR_NORTH To DIR_EAST
+        If bestMap(direction) > 0 Then
+            bestSourceCoord(direction) = ViewportNeighbor_MostUsedCoord(sourceCounts, direction)
+            bestDestCoord(direction) = ViewportNeighbor_MostUsedCoord(destCounts, direction)
+        End If
+    Next direction
+
+    Exit Sub
+ViewportNeighbor_FindNeighbors_Err:
+    Dim errNumber As Long, errDescription As String, errLine As Long
+    errNumber = Err.Number: errDescription = Err.Description: errLine = Erl
     On Error Resume Next
-    Close #fh
-    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_FindDominantNeighbor", Erl)
-End Function
+    If fh <> 0 Then Close #fh
+    Call ViewportNeighbor_ReleaseMapFile(ResourceMap)
+    Call RegistrarError(errNumber, errDescription, "ModViewportNeighbors.ViewportNeighbor_FindNeighbors", errLine)
+End Sub
 
 Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal ResourceMap As Integer) As Boolean
     On Error GoTo ViewportNeighbor_LoadMap_Err
@@ -334,6 +354,8 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
     Get #fh, , csmSignature
     If csmSignature = CSM_FIVE_LAYER_SIGNATURE_NEIGHBOR Then
         Close #fh
+        fh = 0
+        Call ViewportNeighbor_ReleaseMapFile(ResourceMap)
         Exit Function
     End If
     Seek #fh, 1
@@ -412,12 +434,17 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
     End With
 
     Close #fh
+    fh = 0
+    Call ViewportNeighbor_ReleaseMapFile(ResourceMap)
     ViewportNeighbor_LoadMap = True
     Exit Function
 ViewportNeighbor_LoadMap_Err:
+    Dim errNumber As Long, errDescription As String, errLine As Long
+    errNumber = Err.Number: errDescription = Err.Description: errLine = Erl
     On Error Resume Next
-    Close #fh
-    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_LoadMap", Erl)
+    If fh <> 0 Then Close #fh
+    Call ViewportNeighbor_ReleaseMapFile(ResourceMap)
+    Call RegistrarError(errNumber, errDescription, "ModViewportNeighbors.ViewportNeighbor_LoadMap", errLine)
 End Function
 
 Private Sub ViewportNeighbor_InitDirection(ByVal direction As Integer)
@@ -489,13 +516,13 @@ Private Sub ViewportNeighbor_TECoords(ByRef TE As tDatosTE, _
     End Select
 End Sub
 
-Private Function ViewportNeighbor_MostUsedCoord(ByRef counts() As Integer) As Integer
+Private Function ViewportNeighbor_MostUsedCoord(ByRef counts() As Integer, ByVal direction As Integer) As Integer
     Dim coord As Integer
     Dim bestCount As Integer
 
     For coord = XMinMapSize To XMaxMapSize
-        If counts(coord) > bestCount Then
-            bestCount = counts(coord)
+        If counts(direction, coord) > bestCount Then
+            bestCount = counts(direction, coord)
             ViewportNeighbor_MostUsedCoord = coord
         End If
     Next coord
@@ -542,6 +569,21 @@ Private Function ViewportNeighbor_MapPath(ByVal ResourceMap As Integer) As Strin
     ViewportNeighbor_MapPath = App.path & "\..\Recursos\Mapas\mapa" & ResourceMap & ".csm"
 #End If
 End Function
+
+' E4b: con Compresion=1 el .csm extraido al temp se borra apenas se termina de leer (antes los de
+' los vecinos quedaban para siempre). Sin Compresion no hay temporales: no hace nada.
+Private Sub ViewportNeighbor_ReleaseMapFile(ByVal ResourceMap As Integer)
+#If Compresion = 1 Then
+    On Error GoTo ViewportNeighbor_ReleaseMapFile_Err
+    Dim tempPath As String
+    tempPath = Windows_Temp_Dir & "mapa" & ResourceMap & ".csm"
+    ' Delete_File sobre un archivo inexistente lo crea vacio y falla en su handler: chequear antes.
+    If LenB(Dir$(tempPath)) <> 0 Then Call Delete_File(tempPath)
+    Exit Sub
+ViewportNeighbor_ReleaseMapFile_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_ReleaseMapFile", Erl)
+#End If
+End Sub
 
 Private Function ViewportNeighbor_IsWaterGrh(ByVal GrhIndex As Long) As Boolean
     ViewportNeighbor_IsWaterGrh = (GrhIndex >= 1505 And GrhIndex <= 1520) Or (GrhIndex >= 124 And GrhIndex <= 139) Or (GrhIndex >= 24223 And GrhIndex <= 24238) Or ( _
