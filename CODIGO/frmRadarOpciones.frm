@@ -2,14 +2,14 @@ VERSION 5.00
 Begin VB.Form frmRadarOpciones
    BorderStyle     =   3  'Fixed Dialog
    Caption         =   "Opciones del radar"
-   ClientHeight    =   4680
+   ClientHeight    =   4980
    ClientLeft      =   45
    ClientTop       =   390
    ClientWidth     =   4800
    LinkTopic       =   "Form1"
    MaxButton       =   0   'False
    MinButton       =   0   'False
-   ScaleHeight     =   4680
+   ScaleHeight     =   4980
    ScaleWidth      =   4800
    ShowInTaskbar   =   0   'False
    StartUpPosition =   1  'CenterOwner
@@ -18,7 +18,7 @@ Begin VB.Form frmRadarOpciones
       Height          =   375
       Left            =   1800
       TabIndex        =   10
-      Top             =   4140
+      Top             =   4440
       Width           =   1200
    End
    Begin VB.CommandButton cmdRadarGm
@@ -26,7 +26,7 @@ Begin VB.Form frmRadarOpciones
       Height          =   375
       Left            =   2460
       TabIndex        =   9
-      Top             =   3600
+      Top             =   3900
       Visible         =   0   'False
       Width           =   2220
    End
@@ -35,8 +35,16 @@ Begin VB.Form frmRadarOpciones
       Height          =   375
       Left            =   120
       TabIndex        =   8
-      Top             =   3600
+      Top             =   3900
       Width           =   2220
+   End
+   Begin VB.CheckBox chkJefes
+      Caption         =   "Jefes (con detectar NPCs)"
+      Height          =   255
+      Left            =   240
+      TabIndex        =   16
+      Top             =   3480
+      Width           =   4300
    End
    Begin VB.CheckBox chkSimbolos
       Caption         =   "Sacerdotes y banqueros"
@@ -194,6 +202,7 @@ Private Sub LoadControlsFromOptions()
     chkClan.value = BoolToCheck(RadarShowClan)
     chkQuests.value = BoolToCheck(RadarShowQuests)
     chkSimbolos.value = BoolToCheck(RadarShowSymbols)
+    chkJefes.value = BoolToCheck(RadarShowBosses)
 End Sub
 
 Private Function BoolToCheck(ByVal flag As Boolean) As Integer
@@ -269,6 +278,10 @@ End Sub
 
 Private Sub chkSimbolos_Click()
     Call SaveCheck("RadarShowSymbols", chkSimbolos)
+End Sub
+
+Private Sub chkJefes_Click()
+    Call SaveCheck("RadarShowBosses", chkJefes)
 End Sub
 
 Private Sub cmdRestaurar_Click()

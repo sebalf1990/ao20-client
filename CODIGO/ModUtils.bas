@@ -56,6 +56,7 @@ Public RadarFill_UserImperial As Long, RadarBorder_UserImperial As Long
 Public RadarFill_UserCaos As Long, RadarBorder_UserCaos As Long
 Public RadarFill_PartyMember As Long, RadarBorder_PartyMember As Long
 Public RadarFill_ClanMember As Long, RadarBorder_ClanMember As Long
+Public RadarFill_Jefe As Long, RadarBorder_Jefe As Long   ' plan radar-v2 E4: jefe sin icono
 ' Colores de los simbolos de estado de quest dibujados sobre los QuestNpc.
 Public RadarQuestSymbol_Available As Long   ' default amarillo brillante
 Public RadarQuestSymbol_InProgress As Long  ' default gris claro
@@ -72,6 +73,7 @@ Public RadarShowParty As Boolean
 Public RadarShowClan As Boolean
 Public RadarShowQuests As Boolean
 Public RadarShowSymbols As Boolean
+Public RadarShowBosses As Boolean
 Public RadarPalette As Byte            ' 0 normal (radar_colors.ini), 1 alto contraste, 2 daltonico
 Public RadarPointSizeOption As Byte    ' 0 = el de radar_colors.ini; 1..3 = elegido en las opciones
 
@@ -95,6 +97,11 @@ Private RadarIconQuestReady As StdPicture
 Private RadarIconSacerdote As StdPicture
 Private RadarIconBanquero As StdPicture
 Private RadarIconCustom1 As StdPicture
+' Plan radar-v2 E4: iconos por jefe (interface/radar_jefe_<n>.bmp), cargados a demanda; se recuerda
+' tambien el que falta para no ir al disco en cada frame.
+Private RadarJefePic(1 To 255) As StdPicture
+Private RadarJefePicTried(1 To 255) As Boolean
+Private Const RADAR_JEFE_SIZE As Long = 7
 Public StopCreandoCuenta    As Boolean
 Public Const DegreeToRadian As Single = 0.01745329251994 'Pi / 180
 Public Const RadianToDegree As Single = 57.2958279087977 '180 / Pi
@@ -1328,6 +1335,7 @@ Public Sub DibujarMiniMapa()
         Call DrawRadarShape(RadarUserCaos, RadarUserCaosCount, RadarFill_UserCaos, RadarBorder_UserCaos, RadarPointSize)
         Call DrawRadarShape(RadarUserGm, RadarUserGmCount, RadarFill_UserGm, RadarBorder_UserGm, RadarPointSize)
         Call DrawRadarShape(RadarHostiles, RadarHostileCount, RadarFill_Hostile, RadarBorder_Hostile, RadarPointSize)
+        If RadarShowBosses Then Call DrawJefeRadar(RadarJefe, RadarJefeIcono, RadarJefeCount, RadarFill_Jefe, RadarBorder_Jefe)
         If RadarShowClan Then Call DrawRadarShape(RadarClanMembers, RadarClanMembersCount, RadarFill_ClanMember, RadarBorder_ClanMember, RadarPointSize)
         If RadarShowParty Then Call DrawRadarShape(RadarPartyMembers, RadarPartyMembersCount, RadarFill_PartyMember, RadarBorder_PartyMember, RadarPointSize)
     End If
@@ -1479,6 +1487,70 @@ NextSymbol:
 DrawNpcSymbolRadar_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModUtils.DrawNpcSymbolRadar", Erl)
 End Sub
+
+' Plan radar-v2 E4: jefe con su icono si existe el BMP; si no, punto de 7x7 (relleno + borde) con colores propios.
+Private Sub DrawJefeRadar(ByRef arr() As t_RadarHostile, ByRef icons() As Byte, ByVal count As Integer, ByVal fillColor As Long, ByVal borderColor As Long)
+    On Error GoTo DrawJefeRadar_Err
+    If count <= 0 Then Exit Sub
+    Dim hdc As Long
+    hdc = frmMain.MiniMap.hdc
+    Dim k As Long, rPx As Single, rPy As Single
+    Dim ox As Long, oy As Long
+    Dim dx As Long, dy As Long
+    Dim pic As StdPicture
+    For k = 1 To count
+        Set pic = GetJefeIconPicture(icons(k))
+        If Not pic Is Nothing Then
+            rPx = arr(k).x
+            rPy = arr(k).y
+            Call ConvertToMinimapPosition(rPx, rPy, RADAR_ICON_SIZE, RADAR_ICON_SIZE)
+            If BlitRadarPicture(hdc, pic, CLng(rPx), CLng(rPy)) Then GoTo NextJefe
+        End If
+        rPx = arr(k).x
+        rPy = arr(k).y
+        Call ConvertToMinimapPosition(rPx, rPy, CSng(RADAR_JEFE_SIZE), CSng(RADAR_JEFE_SIZE))
+        ox = CLng(rPx)
+        oy = CLng(rPy)
+        For dy = 0 To RADAR_JEFE_SIZE - 1
+            For dx = 0 To RADAR_JEFE_SIZE - 1
+                If dx = 0 Or dy = 0 Or dx = RADAR_JEFE_SIZE - 1 Or dy = RADAR_JEFE_SIZE - 1 Then
+                    Call SetPixel(hdc, ox + dx, oy + dy, borderColor)
+                Else
+                    Call SetPixel(hdc, ox + dx, oy + dy, fillColor)
+                End If
+            Next dx
+        Next dy
+NextJefe:
+    Next k
+    Exit Sub
+DrawJefeRadar_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModUtils.DrawJefeRadar", Erl)
+End Sub
+
+Private Function GetJefeIconPicture(ByVal iconId As Byte) As StdPicture
+    If iconId = 0 Then Exit Function
+    If Not RadarJefePicTried(iconId) Then
+        RadarJefePicTried(iconId) = True
+        Set RadarJefePic(iconId) = LoadRadarIconPicture("radar_jefe_" & iconId & ".bmp")
+    End If
+    Set GetJefeIconPicture = RadarJefePic(iconId)
+End Function
+
+Private Function BlitRadarPicture(ByVal destHdc As Long, ByVal pic As StdPicture, ByVal x As Long, ByVal y As Long) As Boolean
+    On Error GoTo BlitRadarPicture_Err
+    Dim srcDC As Long
+    Dim oldBmp As Long
+    srcDC = CreateCompatibleDC(destHdc)
+    If srcDC = 0 Then Exit Function
+    oldBmp = SelectObject(srcDC, pic.Handle)
+    BlitRadarPicture = (TransparentBlt(destHdc, x, y, RADAR_ICON_SIZE, RADAR_ICON_SIZE, srcDC, 0, 0, RADAR_ICON_SIZE, RADAR_ICON_SIZE, RADAR_ICON_COLOR_KEY) <> 0)
+    If oldBmp <> 0 Then Call SelectObject(srcDC, oldBmp)
+    Call DeleteDC(srcDC)
+    Exit Function
+BlitRadarPicture_Err:
+    If srcDC <> 0 Then Call DeleteDC(srcDC)
+    BlitRadarPicture = False
+End Function
 
 Private Function DrawRadarIcon(ByVal destHdc As Long, ByVal iconId As eRadarIcon, ByVal x As Long, ByVal y As Long) As Boolean
     On Error GoTo DrawRadarIcon_Err
@@ -1677,6 +1749,7 @@ Public Sub LoadRadarColors()
     RadarFill_UserCaos = RGB(0, 255, 0):            RadarBorder_UserCaos = RGB(0, 0, 0)
     RadarFill_PartyMember = RGB(0, 255, 0):         RadarBorder_PartyMember = RGB(0, 80, 0)
     RadarFill_ClanMember = RGB(0, 128, 255):        RadarBorder_ClanMember = RGB(0, 0, 80)
+    RadarFill_Jefe = RGB(200, 0, 0):                RadarBorder_Jefe = RGB(255, 215, 0)
     RadarQuestSymbol_Available = RGB(255, 255, 80)
     RadarQuestSymbol_InProgress = RGB(180, 180, 180)
     RadarQuestSymbol_Ready = RGB(255, 255, 80)
@@ -1684,7 +1757,7 @@ Public Sub LoadRadarColors()
     RadarNpcSymbol_Banquero = RGB(255, 200, 50)
     RadarPointSize = 3
     ' Capas visibles por defecto: si algo falla antes de ApplyRadarUserOptions no se oculta nada.
-    RadarShowParty = True: RadarShowClan = True: RadarShowQuests = True: RadarShowSymbols = True
+    RadarShowParty = True: RadarShowClan = True: RadarShowQuests = True: RadarShowSymbols = True: RadarShowBosses = True
     Dim path As String
     path = App.path & "\radar_colors.ini"
     If FileExist(path, vbNormal) Then
@@ -1723,6 +1796,8 @@ Public Sub LoadRadarColors()
         RadarBorder_PartyMember = ParseRgbFromIni(path, "COLORS", "PartyMember_Border", RadarBorder_PartyMember)
         RadarFill_ClanMember = ParseRgbFromIni(path, "COLORS", "ClanMember_Fill", RadarFill_ClanMember)
         RadarBorder_ClanMember = ParseRgbFromIni(path, "COLORS", "ClanMember_Border", RadarBorder_ClanMember)
+        RadarFill_Jefe = ParseRgbFromIni(path, "COLORS", "Jefe_Fill", RadarFill_Jefe)
+        RadarBorder_Jefe = ParseRgbFromIni(path, "COLORS", "Jefe_Border", RadarBorder_Jefe)
         RadarQuestSymbol_Available = ParseRgbFromIni(path, "COLORS", "QuestSymbol_Available", RadarQuestSymbol_Available)
         RadarQuestSymbol_InProgress = ParseRgbFromIni(path, "COLORS", "QuestSymbol_InProgress", RadarQuestSymbol_InProgress)
         RadarQuestSymbol_Ready = ParseRgbFromIni(path, "COLORS", "QuestSymbol_Ready", RadarQuestSymbol_Ready)
@@ -1755,6 +1830,7 @@ Private Sub ApplyRadarUserOptions()
     RadarShowClan = (GetSettingAsByte("OPCIONES", "RadarShowClan", 1) <> 0)
     RadarShowQuests = (GetSettingAsByte("OPCIONES", "RadarShowQuests", 1) <> 0)
     RadarShowSymbols = (GetSettingAsByte("OPCIONES", "RadarShowSymbols", 1) <> 0)
+    RadarShowBosses = (GetSettingAsByte("OPCIONES", "RadarShowBosses", 1) <> 0)
     RadarPointSizeOption = GetSettingAsByte("OPCIONES", "RadarPointSize", 0)
     If RadarPointSizeOption >= 1 And RadarPointSizeOption <= 3 Then RadarPointSize = RadarPointSizeOption
     RadarPalette = GetSettingAsByte("OPCIONES", "RadarPalette", 0)
@@ -1764,7 +1840,7 @@ Private Sub ApplyRadarUserOptions()
     End Select
     Exit Sub
 ApplyRadarUserOptions_Err:
-    RadarShowParty = True: RadarShowClan = True: RadarShowQuests = True: RadarShowSymbols = True
+    RadarShowParty = True: RadarShowClan = True: RadarShowQuests = True: RadarShowSymbols = True: RadarShowBosses = True
     Call RegistrarError(Err.Number, Err.Description, "ModUtils.ApplyRadarUserOptions", Erl)
 End Sub
 
@@ -1783,6 +1859,7 @@ Private Sub ApplyRadarPaletteHighContrast()
     RadarFill_UserCaos = RGB(255, 0, 255):         RadarBorder_UserCaos = RGB(255, 255, 255)
     RadarFill_PartyMember = RGB(0, 255, 0):        RadarBorder_PartyMember = RGB(0, 0, 0)
     RadarFill_ClanMember = RGB(0, 128, 255):       RadarBorder_ClanMember = RGB(255, 255, 255)
+    RadarFill_Jefe = RGB(255, 0, 0):               RadarBorder_Jefe = RGB(255, 255, 0)
 End Sub
 
 ' Paleta Okabe-Ito: se distingue con deuteranopia y protanopia (no depende de rojo contra verde).
@@ -1800,6 +1877,7 @@ Private Sub ApplyRadarPaletteColorBlind()
     RadarFill_UserCaos = RGB(204, 121, 167):       RadarBorder_UserCaos = RGB(255, 255, 255)
     RadarFill_PartyMember = RGB(0, 158, 115):      RadarBorder_PartyMember = RGB(255, 255, 255)
     RadarFill_ClanMember = RGB(0, 114, 178):       RadarBorder_ClanMember = RGB(240, 228, 66)
+    RadarFill_Jefe = RGB(213, 94, 0):              RadarBorder_Jefe = RGB(240, 228, 66)
 End Sub
 
 

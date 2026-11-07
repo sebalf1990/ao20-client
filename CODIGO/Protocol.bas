@@ -488,6 +488,8 @@ Public Function HandleIncomingData(ByVal message As Network.Reader) As Boolean
                 Call HandleNpcRadarPartyMember
             Case ServerPacketID.eNpcRadarClanMember
                 Call HandleNpcRadarClanMember
+            Case ServerPacketID.eNpcRadarJefe
+                Call HandleNpcRadarJefe
             Case Else
                 ' Invalid Message
         End Select
@@ -538,6 +540,7 @@ Private Sub HandleLogged()
     RadarQuestNpcCount = 0
     Erase RadarQuestNpcState
     RadarNpcSymbolCount = 0
+    RadarJefeCount = 0
     Erase RadarNpcSymbol
     Erase RadarNpcSymbolSubtype
     RadarGuardiaRealCount = 0
@@ -6629,6 +6632,15 @@ Private Sub HandleNpcRadarPartyMember()
     Exit Sub
 HandleNpcRadarPartyMember_Err:
     Call RegistrarError(Err.Number, Err.Description, "Protocol.HandleNpcRadarPartyMember", Erl)
+End Sub
+
+' Plan radar-v2 E4: jefes con su icono (formato extendido, igual que eNpcRadarNpcSymbol).
+Private Sub HandleNpcRadarJefe()
+    On Error GoTo HandleNpcRadarJefe_Err
+    Call ReadRadarQuestNpcPacket(RadarJefe, RadarJefeIcono, RadarJefeCount)
+    Exit Sub
+HandleNpcRadarJefe_Err:
+    Call RegistrarError(Err.Number, Err.Description, "Protocol.HandleNpcRadarJefe", Erl)
 End Sub
 
 Private Sub HandleNpcRadarClanMember()

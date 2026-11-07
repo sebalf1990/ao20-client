@@ -43,6 +43,7 @@ Sub SwitchMap(ByVal map As Integer, Optional ByVal NewResourceMap As Integer = 0
     RadarQuestNpcCount = 0
     Erase RadarQuestNpcState
     RadarNpcSymbolCount = 0
+    RadarJefeCount = 0
     Erase RadarNpcSymbol
     Erase RadarNpcSymbolSubtype
     RadarGuardiaRealCount = 0
