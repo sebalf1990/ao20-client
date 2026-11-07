@@ -380,7 +380,8 @@ Sub RenderScreen(ByVal center_x As Integer, _
         screenY = screenY + TilePixelHeight
     Next y
     Call ViewportNeighbor_RenderLayer(3, RawBufferedMinX, RawBufferedMaxX, RawBufferedMinY, RawBufferedMaxY, StartBufferedX - MinBufferedX * TilePixelWidth, StartBufferedY - MinBufferedY * TilePixelHeight)
-    If InfoItemsEnRender And tX And tY Then
+    ' Bounds check: tX/tY can exceed the map right after a map switch (old position) in FULL view.
+    If InfoItemsEnRender And tX >= XMinMapSize And tX <= XMaxMapSize And tY >= YMinMapSize And tY <= YMaxMapSize Then
         With MapData(tX, tY)
             If .OBJInfo.ObjIndex Then
                 If Not ObjData(.OBJInfo.ObjIndex).Agarrable Then
