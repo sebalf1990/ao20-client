@@ -430,6 +430,8 @@ Public Function HandleIncomingData(ByVal message As Network.Reader) As Boolean
                 Call HandleUpdatePoisonStacks
             Case ServerPacketID.eProfessionsUpdate
                 Call HandleProfessionsUpdate
+            Case ServerPacketID.eGuardianChallenge
+                Call HandleGuardianChallenge
             Case ServerPacketID.eDebugDataResponse
                 Call HandleDebugDataResponse
             Case ServerPacketID.eCreateProjectile
@@ -6272,6 +6274,20 @@ Public Sub HandleAntiCheatStartSession()
     Exit Sub
 HandleAntiCheatStartSession_Err:
     Call RegistrarError(Err.Number, Err.Description, "Protocol.HandleAntiCheatStartSession", Erl)
+End Sub
+
+' E4c antitrampas: desafio del guardian (String8 N hex, Int16 intervalo_seg). Se lee entero siempre; modGuardianPipe
+' decide si hay guardian con quien hablar. Sin guardian no pasa nada visible.
+Public Sub HandleGuardianChallenge()
+    On Error GoTo HandleGuardianChallenge_Err
+    Dim nHex        As String
+    Dim intervalSec As Long
+    nHex = Reader.ReadString8
+    intervalSec = Reader.ReadInt16
+    Call GuardianPipeOnChallenge(nHex, intervalSec)
+    Exit Sub
+HandleGuardianChallenge_Err:
+    Call RegistrarError(Err.Number, Err.Description, "Protocol.HandleGuardianChallenge", Erl)
 End Sub
 
 Public Sub HandleAntiCheatMessage()
