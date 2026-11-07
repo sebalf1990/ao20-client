@@ -582,6 +582,8 @@ Attribute VB_Exposed = False
 Option Explicit
 Private Bajar       As Boolean
 Private Subir       As Boolean
+' E3: True mientras Form_Load asigna el slider de transparencia (evita escribir el ini al cargar).
+Private m_loading   As Boolean
 Public bmoving      As Boolean
 Public dx           As Integer
 Public dy           As Integer
@@ -696,8 +698,6 @@ End Sub
 Private Sub Form_Load()
     Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     On Error GoTo Form_Load_Err
-    Call MenuTransparency_EnsureLoaded
-    Call Aplicar_Transparencia(Me.hWnd, g_menu_alpha)
     '    Call FormParser.Parse_Form(Me)
     Me.Picture = LoadInterface("configuracion-vacio.bmp")
     PanelJugabilidad.Picture = LoadInterface("configuracion-jugabilidad.bmp")
@@ -747,7 +747,9 @@ Private Sub Form_Load()
     BtnSolapa(2).Picture = LoadInterface("boton-audio-off.bmp")
     Call loadButtons
     Call MenuTransparency_EnsureLoaded
+    m_loading = True
     scrMenuAlpha.value = g_menu_alpha
+    m_loading = False
     Exit Sub
 Form_Load_Err:
     Call RegistrarError(Err.Number, Err.Description, "frmOpciones.Form_Load", Erl)
@@ -759,17 +761,20 @@ Private Sub loadButtons()
     Call cBotonCerrar.Initialize(cmdCerrar, "boton-cerrar-default.bmp", "boton-cerrar-over.bmp", "boton-cerrar-off.bmp", Me)
 End Sub
 
+' E3: Change persiste en el ini (al soltar el slider o con teclado/flechas); no corre al cargar.
 Private Sub scrMenuAlpha_Change()
     On Error Resume Next
+    If m_loading Then Exit Sub
     Call MenuTransparency_Set(scrMenuAlpha.value)
-    Call Aplicar_Transparencia(Me.hWnd, g_menu_alpha)
+    Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     Call ModFloatingWindows.Refresh_FloatingWindowsTransparency
 End Sub
 
+' E3: Scroll corre en cada tick del arrastre: aplica en vivo pero NO escribe el ini.
 Private Sub scrMenuAlpha_Scroll()
     On Error Resume Next
-    Call MenuTransparency_Set(scrMenuAlpha.value)
-    Call Aplicar_Transparencia(Me.hWnd, g_menu_alpha)
+    Call MenuTransparency_Preview(scrMenuAlpha.value)
+    Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     Call ModFloatingWindows.Refresh_FloatingWindowsTransparency
 End Sub
 

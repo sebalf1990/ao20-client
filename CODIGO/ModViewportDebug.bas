@@ -43,6 +43,10 @@ Private Type t_DebugConsoleLine
     italic   As Boolean
     ts       As Long
     category As Byte
+    ' E3: cache del wrap (se recalcula solo al agregar texto o cambiar el ancho).
+    wrapLines() As String
+    wrapCount   As Integer
+    wrapWidth   As Long
 End Type
 
 Private g_ring(0 To 79)         As t_DebugConsoleLine
@@ -61,6 +65,8 @@ Private g_log_initialized       As Boolean
 Private g_log_path              As String
 Private g_console_scroll_lines  As Long
 Private g_console_total_visual   As Long
+Private g_wrap_dirty             As Boolean
+Private g_wrap_total_width       As Long
 Private g_subclassed_renderer    As Boolean
 Private g_subclassed_form        As Boolean
 
@@ -114,6 +120,7 @@ End Sub
 Public Sub ViewportDebug_SetViewportMode(ByVal IsFullscreen As Boolean)
     g_viewport_full = IsFullscreen
     g_console_scroll_lines = 0
+    g_wrap_dirty = True
     If IsFullscreen Then
         Call ViewportDebug_EnableMouseWheel
     Else
@@ -270,6 +277,12 @@ Private Function WrapConsoleText(ByVal text As String, ByVal maxWidth As Long, B
     ReDim outLines(0 To 0) As String
     Dim count As Integer
     Dim rest As String
+    Dim restLen As Long
+    Dim takeLen As Long
+    Dim lastSpace As Long
+    Dim lineWidth As Long
+    Dim ignoredGrh As Long
+    Dim i As Long
     rest = Trim$(text)
     If LenB(rest) = 0 Then
         outLines(0) = " "
@@ -277,16 +290,22 @@ Private Function WrapConsoleText(ByVal text As String, ByVal maxWidth As Long, B
         Exit Function
     End If
 
-    ' Engine_Text_Render usa multi_line como parametro 6; no pasar bold aca.
+    ' E3: ancho acumulado una sola vez por linea (antes se re-media el prefijo completo
+    ' al achicar de a un caracter). Usa la misma regla de glifos que el dibujo.
     Do While Len(rest) > 0
-        Dim takeLen As Long
-        takeLen = Len(rest)
-        Do While takeLen > 1 And Engine_Text_Width(Left$(rest, takeLen), False) > maxWidth
-            takeLen = takeLen - 1
-        Loop
+        restLen = Len(rest)
+        takeLen = restLen
+        lineWidth = 0
+        For i = 1 To restLen
+            lineWidth = lineWidth + ConsoleGlyphAdvance(Asc(Mid$(rest, i, 1)), ignoredGrh)
+            If lineWidth > maxWidth Then
+                takeLen = i - 1
+                Exit For
+            End If
+        Next i
+        If takeLen < 1 Then takeLen = 1
 
-        If takeLen < Len(rest) Then
-            Dim lastSpace As Long
+        If takeLen < restLen Then
             lastSpace = InStrRev(Left$(rest, takeLen), " ")
             If lastSpace > 8 Then takeLen = lastSpace - 1
         End If
@@ -303,6 +322,52 @@ WrapConsoleText_Err:
     ReDim outLines(0 To 0) As String
     outLines(0) = text
     WrapConsoleText = 1
+End Function
+
+' E3: garantiza que la entrada del anillo tenga el wrap vigente para ese ancho.
+Private Sub EnsureEntryWrapped(ByVal ringIndex As Integer, ByVal maxWidth As Long)
+    On Error GoTo EnsureEntryWrapped_Err
+    If g_ring(ringIndex).wrapCount > 0 And g_ring(ringIndex).wrapWidth = maxWidth Then Exit Sub
+    Dim tmpLines() As String
+    Dim lineCount As Integer
+    Dim k As Integer
+    lineCount = WrapConsoleText(g_ring(ringIndex).text, maxWidth, g_ring(ringIndex).bold, tmpLines)
+    ReDim g_ring(ringIndex).wrapLines(0 To lineCount - 1) As String
+    For k = 0 To lineCount - 1
+        g_ring(ringIndex).wrapLines(k) = tmpLines(k)
+    Next k
+    g_ring(ringIndex).wrapCount = lineCount
+    g_ring(ringIndex).wrapWidth = maxWidth
+    Exit Sub
+EnsureEntryWrapped_Err:
+    ' Sin RegistrarError (evita recursion con la consola). Deja la entrada como una sola linea.
+    ReDim g_ring(ringIndex).wrapLines(0 To 0) As String
+    g_ring(ringIndex).wrapLines(0) = g_ring(ringIndex).text
+    g_ring(ringIndex).wrapCount = 1
+    g_ring(ringIndex).wrapWidth = maxWidth
+End Sub
+
+' E3: regla unica de ancho de glifo de la consola. La usan el wrap (medir) y
+' RenderConsoleGlyphLine (dibujar): espacio = 4 px, glifos <= 12 no se dibujan ni avanzan.
+' grhIndex devuelve el grh a dibujar (0 = nada que dibujar).
+Private Function ConsoleGlyphAdvance(ByVal charCode As Long, ByRef grhIndex As Long) As Long
+    On Error Resume Next
+    Dim charW As Long
+    grhIndex = 0
+    If charCode = 32 Then
+        ConsoleGlyphAdvance = 4
+        Exit Function
+    End If
+    grhIndex = Fuentes(1).Caracteres(charCode)
+    If grhIndex <= 12 Then
+        grhIndex = 0
+        Exit Function
+    End If
+    charW = 0
+    charW = GrhData(GrhData(grhIndex).Frames(1)).pixelWidth
+    If charW <= 0 Then charW = GrhData(grhIndex).pixelWidth
+    If charW <= 0 Then charW = 6
+    ConsoleGlyphAdvance = charW
 End Function
 
 Private Sub RenderConsoleTextLine(ByVal text As String, _
@@ -330,28 +395,16 @@ Private Sub RenderConsoleGlyphLine(ByVal text As String, _
                                    ByRef textColor() As RGBA)
     On Error Resume Next
     Dim i As Long
-    Dim charCode As Integer
     Dim grhIndex As Long
     Dim drawX As Long
-    Dim charW As Long
+    Dim advance As Long
 
     drawX = x
 
     For i = 1 To Len(text)
-        charCode = Asc(Mid$(text, i, 1))
-        If charCode = 32 Then
-            drawX = drawX + 4
-        Else
-            grhIndex = Fuentes(1).Caracteres(charCode)
-            If grhIndex > 12 Then
-                Call Draw_GrhFont(grhIndex, drawX, y, textColor)
-                charW = 0
-                charW = GrhData(GrhData(grhIndex).Frames(1)).pixelWidth
-                If charW <= 0 Then charW = GrhData(grhIndex).pixelWidth
-                If charW <= 0 Then charW = 6
-                drawX = drawX + charW
-            End If
-        End If
+        advance = ConsoleGlyphAdvance(Asc(Mid$(text, i, 1)), grhIndex)
+        If grhIndex > 0 Then Call Draw_GrhFont(grhIndex, drawX, y, textColor)
+        drawX = drawX + advance
     Next i
 End Sub
 
@@ -369,6 +422,8 @@ Private Sub PushOneRingEntry(ByVal text As String, _
         lastIndex = (g_ring_head - 1 + RING_SIZE) Mod RING_SIZE
         g_ring(lastIndex).text = g_ring(lastIndex).text & text
         g_ring(lastIndex).ts = FrameTime
+        g_ring(lastIndex).wrapCount = 0
+        g_wrap_dirty = True
         Exit Sub
     End If
     With g_ring(g_ring_head)
@@ -380,7 +435,9 @@ Private Sub PushOneRingEntry(ByVal text As String, _
         .italic = italic
         .ts = FrameTime
         .category = category
+        .wrapCount = 0
     End With
+    g_wrap_dirty = True
     g_ring_head = (g_ring_head + 1) Mod RING_SIZE
     If g_ring_count < RING_SIZE Then g_ring_count = g_ring_count + 1
 End Sub
@@ -424,6 +481,7 @@ Public Sub ViewportDebug_ToggleCategory(ByVal category As Byte)
         Case e_ConsoleCat_Combat:  g_show_combat  = Not g_show_combat:  Call SaveSetting("ConsoleFull", "ShowCombat",  IIf(g_show_combat,  "1", "0"))
         Case e_ConsoleCat_Global:  g_show_global  = Not g_show_global:  Call SaveSetting("ConsoleFull", "ShowGlobal",  IIf(g_show_global,  "1", "0"))
     End Select
+    g_wrap_dirty = True
 End Sub
 
 Public Function ViewportDebug_IsCategoryEnabled(ByVal category As Byte) As Boolean
@@ -540,9 +598,9 @@ Public Sub Render_ViewportDebugOverlay()
         minY = consY + 22
         Dim lineColor(3) As RGBA
         Dim idx As Integer
-        Dim wrapped() As String
         Dim wrappedCount As Integer
         Dim wrappedIdx As Integer
+        Dim wrapWidth As Long
         Dim renderedLines As Integer
         Dim maxLines As Integer
         maxLines = (consH - 26) \ OVERLAY_CONSOLE_LINE_H
@@ -550,16 +608,20 @@ Public Sub Render_ViewportDebugOverlay()
         Dim skippedLines As Long
         Dim totalVisual As Long
         Call EnsureFiltersLoaded
-        For i = 0 To g_ring_count - 1
-            idx = (g_ring_head - 1 - i + RING_SIZE) Mod RING_SIZE
-            With g_ring(idx)
-                If IsCategoryVisible(.category) Then
-                    wrappedCount = WrapConsoleText(.text, consW - 24, .bold, wrapped)
-                    totalVisual = totalVisual + wrappedCount
+        wrapWidth = consW - 24
+        ' E3: el total de lineas visuales solo se recalcula si cambio el texto, el filtro o el ancho.
+        If g_wrap_dirty Or g_wrap_total_width <> wrapWidth Then
+            For i = 0 To g_ring_count - 1
+                idx = (g_ring_head - 1 - i + RING_SIZE) Mod RING_SIZE
+                If IsCategoryVisible(g_ring(idx).category) Then
+                    Call EnsureEntryWrapped(idx, wrapWidth)
+                    totalVisual = totalVisual + g_ring(idx).wrapCount
                 End If
-            End With
-        Next i
-        g_console_total_visual = totalVisual
+            Next i
+            g_console_total_visual = totalVisual
+            g_wrap_total_width = wrapWidth
+            g_wrap_dirty = False
+        End If
         Call ClampConsoleScroll
 
         For i = 0 To g_ring_count - 1
@@ -567,13 +629,14 @@ Public Sub Render_ViewportDebugOverlay()
             With g_ring(idx)
                 If Not IsCategoryVisible(.category) Then GoTo NextEntry
                 Call RGBAList(lineColor, CByte(.red And 255), CByte(.green And 255), CByte(.blue And 255), 255)
-                wrappedCount = WrapConsoleText(.text, consW - 24, .bold, wrapped)
+                Call EnsureEntryWrapped(idx, wrapWidth)
+                wrappedCount = .wrapCount
                 For wrappedIdx = wrappedCount - 1 To 0 Step -1
                     If skippedLines < g_console_scroll_lines Then
                         skippedLines = skippedLines + 1
                     Else
                         If bottomY < minY Then Exit For
-                        Call RenderConsoleTextLine(wrapped(wrappedIdx), consX + 5, bottomY, consW - 24, CByte(.red And 255), CByte(.green And 255), CByte(.blue And 255))
+                        Call RenderConsoleTextLine(.wrapLines(wrappedIdx), consX + 5, bottomY, consW - 24, CByte(.red And 255), CByte(.green And 255), CByte(.blue And 255))
                         bottomY = bottomY - OVERLAY_CONSOLE_LINE_H
                         renderedLines = renderedLines + 1
                         If renderedLines >= maxLines Then Exit For

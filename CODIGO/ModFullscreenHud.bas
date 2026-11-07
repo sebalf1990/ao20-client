@@ -42,6 +42,41 @@ Private Const MAPLABEL_MAX_W   As Long = 220
 ' === Estado ===
 Private g_fullscreen_hud_active As Boolean
 
+' E3: caches por valor (se reconstruyen solo cuando cambia el dato de origen).
+Private g_circle_ready      As Boolean
+Private g_circle_cached_r   As Long
+Private g_circle_half()     As Long
+Private g_circle_out_x()    As Long
+Private g_circle_out_y()    As Long
+Private g_circle_out_count  As Long
+Private Const CIRCLE_OUTLINE_STEP_DEG As Long = 3
+
+Private g_lvl_value         As Long
+Private g_lvl_text          As String
+Private g_stat_cur(0 To 1)  As Long
+Private g_stat_max(0 To 1)  As Long
+Private g_stat_text(0 To 1) As String
+Private g_stat_width(0 To 1) As Long
+Private g_fit_ready         As Boolean
+Private g_fit_src           As String
+Private g_fit_maxw          As Long
+Private g_fit_result        As String
+Private g_map_ready         As Boolean
+Private g_map_src           As String
+Private g_map_fit           As String
+Private g_map_width         As Long
+Private g_pos_ready         As Boolean
+Private g_pos_x             As Long
+Private g_pos_y             As Long
+Private g_pos_text          As String
+Private g_pos_width         As Long
+Private g_str_text          As String
+Private g_str_value         As Long
+Private g_str_width         As Long
+Private g_agi_text          As String
+Private g_agi_value         As Long
+Private g_agi_width         As Long
+
 Public Sub Set_FullscreenHudActive(ByVal active As Boolean)
     g_fullscreen_hud_active = active
 End Sub
@@ -85,17 +120,19 @@ Private Sub Render_HudTopLeft()
     expColor = RGBA_From_Comp(255, 215, 70, 235)
     Call DrawBar(barX, EXP_LINE_Y, EXP_BAR_W, EXP_BAR_H, UserStats.exp, UserStats.PasarNivel, expColor)
 
-    Dim lvlTxt As String
-    lvlTxt = "Lvl " & UserStats.Lvl
-    Call Engine_Text_Render(lvlTxt, barX + EXP_BAR_W + 8, LINE_NAME_Y, white, 1, True)
+    If LenB(g_lvl_text) = 0 Or g_lvl_value <> UserStats.Lvl Then
+        g_lvl_value = UserStats.Lvl
+        g_lvl_text = "Lvl " & g_lvl_value
+    End If
+    Call Engine_Text_Render(g_lvl_text, barX + EXP_BAR_W + 8, LINE_NAME_Y, white, 1, True)
 
     ' Linea 2: Vida
     Call Engine_Text_Render("Vida", tx, VIDA_LINE_Y - 1, dimColor, 1, False)
-    Call DrawStatBar(barX, VIDA_LINE_Y, UserStats.MinHp, UserStats.MaxHp, 220, 30, 30)
+    Call DrawStatBar(barX, VIDA_LINE_Y, UserStats.MinHp, UserStats.MaxHp, 220, 30, 30, 0)
 
     ' Linea 3: Mana
     Call Engine_Text_Render("Mana", tx, MANA_LINE_Y - 1, dimColor, 1, False)
-    Call DrawStatBar(barX, MANA_LINE_Y, UserStats.minman, UserStats.maxman, 50, 80, 220)
+    Call DrawStatBar(barX, MANA_LINE_Y, UserStats.minman, UserStats.maxman, 50, 80, 220, 1)
     Exit Sub
 Render_HudTopLeft_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModFullscreenHud.Render_HudTopLeft", Erl)
@@ -174,27 +211,50 @@ End Sub
 
 Private Sub DrawFilledCircle(ByVal cx As Long, ByVal cy As Long, ByVal r As Long, ByRef color As RGBA)
     On Error Resume Next
-    Dim r2 As Long
-    r2 = r * r
+    Call EnsureCircleCache(r)
     Dim iy As Long, half As Long
     For iy = -r To r
-        half = CLng(Sqr(r2 - iy * iy))
+        half = g_circle_half(iy + r)
         If half > 0 Then
             Call Engine_Draw_Box(cx - half, cy + iy, half * 2, 1, color)
         End If
     Next iy
 End Sub
 
+' E3: precalcula una sola vez (por radio) el ancho de cada scanline del disco y los
+' desplazamientos del contorno (mismos puntos que antes: cada 3 grados, caja de 2x2).
+Private Sub EnsureCircleCache(ByVal r As Long)
+    On Error Resume Next
+    If g_circle_ready And g_circle_cached_r = r Then Exit Sub
+    Const PI_VAL As Double = 3.14159265358979
+    Dim r2 As Long
+    Dim iy As Long
+    Dim a As Long
+    Dim k As Long
+    r2 = r * r
+    ReDim g_circle_half(0 To 2 * r) As Long
+    For iy = -r To r
+        g_circle_half(iy + r) = CLng(Sqr(r2 - iy * iy))
+    Next iy
+    g_circle_out_count = 360 \ CIRCLE_OUTLINE_STEP_DEG
+    ReDim g_circle_out_x(0 To g_circle_out_count - 1) As Long
+    ReDim g_circle_out_y(0 To g_circle_out_count - 1) As Long
+    For a = 0 To 359 Step CIRCLE_OUTLINE_STEP_DEG
+        k = a \ CIRCLE_OUTLINE_STEP_DEG
+        g_circle_out_x(k) = CLng(r * Cos(a * PI_VAL / 180)) - 1
+        g_circle_out_y(k) = CLng(r * Sin(a * PI_VAL / 180)) - 1
+    Next a
+    g_circle_cached_r = r
+    g_circle_ready = True
+End Sub
+
 Private Sub DrawCircleOutline(ByVal cx As Long, ByVal cy As Long, ByVal r As Long, ByRef color As RGBA)
     On Error Resume Next
-    Const PI_VAL As Double = 3.14159265358979
-    Dim a As Long
-    Dim px As Long, py As Long
-    For a = 0 To 359 Step 3
-        px = cx + CLng(r * Cos(a * PI_VAL / 180)) - 1
-        py = cy + CLng(r * Sin(a * PI_VAL / 180)) - 1
-        Call Engine_Draw_Box(px, py, 2, 2, color)
-    Next a
+    Call EnsureCircleCache(r)
+    Dim k As Long
+    For k = 0 To g_circle_out_count - 1
+        Call Engine_Draw_Box(cx + g_circle_out_x(k), cy + g_circle_out_y(k), 2, 2, color)
+    Next k
 End Sub
 
 Private Sub DrawBar(ByVal x As Long, ByVal y As Long, ByVal w As Long, ByVal h As Long, ByVal current As Long, ByVal maxVal As Long, ByRef color As RGBA)
@@ -224,37 +284,87 @@ Private Sub DrawBar(ByVal x As Long, ByVal y As Long, ByVal w As Long, ByVal h A
     Call Engine_Draw_Box(x + w - 1, y, 1, h, borderC)
 End Sub
 
-Private Sub DrawStatBar(ByVal x As Long, ByVal y As Long, ByVal current As Long, ByVal maxVal As Long, ByVal r As Byte, ByVal g As Byte, ByVal b As Byte)
+Private Sub DrawStatBar(ByVal x As Long, ByVal y As Long, ByVal current As Long, ByVal maxVal As Long, ByVal r As Byte, ByVal g As Byte, ByVal b As Byte, ByVal barId As Long)
     On Error Resume Next
     Dim color As RGBA
     color = RGBA_From_Comp(r, g, b, 235)
     Call DrawBar(x, y, STAT_BAR_W, STAT_BAR_H, current, maxVal, color)
 
-    Dim numText As String
-    numText = current & "/" & maxVal
-    Dim text_w As Long
-    text_w = Engine_Text_Width(numText, True)
+    ' E3: texto "actual/max" y su ancho solo se rebuscan cuando cambia algun valor.
+    If LenB(g_stat_text(barId)) = 0 Or g_stat_cur(barId) <> current Or g_stat_max(barId) <> maxVal Then
+        g_stat_cur(barId) = current
+        g_stat_max(barId) = maxVal
+        g_stat_text(barId) = current & "/" & maxVal
+        g_stat_width(barId) = Engine_Text_Width(g_stat_text(barId), True)
+    End If
     Dim white(3) As RGBA
     Call RGBAList(white, 255, 255, 255, 255)
-    Call Engine_Text_Render(numText, x + (STAT_BAR_W - text_w) \ 2, y - 1, white, 1, False)
+    Call Engine_Text_Render(g_stat_text(barId), x + (STAT_BAR_W - g_stat_width(barId)) \ 2, y - 1, white, 1, False)
 End Sub
 
 Private Function FitTextToWidth(ByVal text As String, ByVal maxWidth As Long, ByVal bold As Boolean) As String
     On Error Resume Next
-    If Engine_Text_Width(text, False) <= maxWidth Then
+    ' E3: cache por (texto, ancho): el nombre del mapa casi nunca cambia.
+    If g_fit_ready And maxWidth = g_fit_maxw And text = g_fit_src Then
+        FitTextToWidth = g_fit_result
+        Exit Function
+    End If
+    g_fit_src = text
+    g_fit_maxw = maxWidth
+    g_fit_ready = True
+
+    If HudTextWidth(text) <= maxWidth Then
+        g_fit_result = text
         FitTextToWidth = text
         Exit Function
     End If
 
     Do While Len(text) > 4
         text = Left(text, Len(text) - 1)
-        If Engine_Text_Width(text & "...", False) <= maxWidth Then
-            FitTextToWidth = text & "..."
+        If HudTextWidth(text & "...") <= maxWidth Then
+            g_fit_result = text & "..."
+            FitTextToWidth = g_fit_result
             Exit Function
         End If
     Loop
 
-    FitTextToWidth = Left(text, 1) & "..."
+    g_fit_result = Left(text, 1) & "..."
+    FitTextToWidth = g_fit_result
+End Function
+
+' E3: ancho en pixeles con la MISMA regla con la que se dibuja (RenderHudGlyphLine).
+' Engine_Text_Width contaba glifos que el dibujo saltea y el texto alineado a la derecha quedaba corrido.
+Private Function HudTextWidth(ByVal text As String) As Long
+    On Error Resume Next
+    Dim i As Long
+    Dim ignoredGrh As Long
+    For i = 1 To Len(text)
+        HudTextWidth = HudTextWidth + HudGlyphAdvance(Asc(Mid$(text, i, 1)), ignoredGrh)
+    Next i
+End Function
+
+' Regla unica de glifo del HUD: espacio = 4 px; glifos <= 12 o fuera de MaxGrh no se dibujan ni avanzan.
+' grhIndex devuelve el grh a dibujar (0 = nada que dibujar).
+Private Function HudGlyphAdvance(ByVal charCode As Long, ByRef grhIndex As Long) As Long
+    On Error Resume Next
+    Dim charW As Long
+    Dim frameIdx As Long
+    grhIndex = 0
+    If charCode = 32 Then
+        HudGlyphAdvance = 4
+        Exit Function
+    End If
+    grhIndex = Fuentes(1).Caracteres(charCode)
+    If grhIndex <= 12 Or grhIndex > MaxGrh Then
+        grhIndex = 0
+        Exit Function
+    End If
+    charW = 0
+    frameIdx = GrhData(grhIndex).Frames(1)
+    If frameIdx > 0 And frameIdx <= MaxGrh Then charW = GrhData(frameIdx).pixelWidth
+    If charW <= 0 Then charW = GrhData(grhIndex).pixelWidth
+    If charW <= 0 Then charW = 6
+    HudGlyphAdvance = charW
 End Function
 
 Private Sub RenderHudTextLine(ByVal text As String, _
@@ -281,30 +391,16 @@ Private Sub RenderHudGlyphLine(ByVal text As String, _
                                ByRef textColor() As RGBA)
     On Error Resume Next
     Dim i As Long
-    Dim charCode As Integer
     Dim grhIndex As Long
     Dim drawX As Long
-    Dim charW As Long
-    Dim frameIdx As Long
+    Dim advance As Long
 
     drawX = x
 
     For i = 1 To Len(text)
-        charCode = Asc(Mid$(text, i, 1))
-        If charCode = 32 Then
-            drawX = drawX + 4
-        Else
-            grhIndex = Fuentes(1).Caracteres(charCode)
-            If grhIndex > 12 And grhIndex <= MaxGrh Then
-                Call Draw_GrhFont(grhIndex, drawX, y, textColor)
-                charW = 0
-                frameIdx = GrhData(grhIndex).Frames(1)
-                If frameIdx > 0 And frameIdx <= MaxGrh Then charW = GrhData(frameIdx).pixelWidth
-                If charW <= 0 Then charW = GrhData(grhIndex).pixelWidth
-                If charW <= 0 Then charW = 6
-                drawX = drawX + charW
-            End If
-        End If
+        advance = HudGlyphAdvance(Asc(Mid$(text, i, 1)), grhIndex)
+        If grhIndex > 0 Then Call Draw_GrhFont(grhIndex, drawX, y, textColor)
+        drawX = drawX + advance
     Next i
 End Sub
 
@@ -321,19 +417,23 @@ Private Sub Render_HudTopRight()
     On Error GoTo Render_HudTopRight_Err
     If LenB(mapNameTxt) = 0 Then mapNameTxt = "Mapa " & UserMap
 
-    mapNameTxt = FitTextToWidth(mapNameTxt, MAPLABEL_MAX_W, False)
+    ' E3: etiqueta de mapa, coordenadas y stats se rearman solo si cambia el dato de origen.
+    If Not g_map_ready Or mapNameTxt <> g_map_src Then
+        g_map_src = mapNameTxt
+        g_map_fit = FitTextToWidth(mapNameTxt, MAPLABEL_MAX_W, False)
+        g_map_width = HudTextWidth(g_map_fit)
+        g_map_ready = True
+    End If
+    Call RenderHudTextLine(g_map_fit, MINIMAP_X + MINIMAP_W - g_map_width, MAPLABEL_Y, MAPLABEL_MAX_W, 255, 255, 255)
 
-    Dim mapW As Long
-    mapW = Engine_Text_Width(mapNameTxt, False)
-    Dim mapX As Long
-    mapX = MINIMAP_X + MINIMAP_W - mapW
-    Call RenderHudTextLine(mapNameTxt, mapX, MAPLABEL_Y, MAPLABEL_MAX_W, 255, 255, 255)
-
-    Dim posTxt As String
-    posTxt = UserPos.x & ":" & UserPos.y
-    Dim posW As Long
-    posW = Engine_Text_Width(posTxt, False)
-    Call RenderHudTextLine(posTxt, MINIMAP_X + MINIMAP_W - posW, MAPLABEL_Y + 14, 60, 255, 255, 255)
+    If Not g_pos_ready Or UserPos.x <> g_pos_x Or UserPos.y <> g_pos_y Then
+        g_pos_x = UserPos.x
+        g_pos_y = UserPos.y
+        g_pos_text = g_pos_x & ":" & g_pos_y
+        g_pos_width = HudTextWidth(g_pos_text)
+        g_pos_ready = True
+    End If
+    Call RenderHudTextLine(g_pos_text, MINIMAP_X + MINIMAP_W - g_pos_width, MAPLABEL_Y + 14, 60, 255, 255, 255)
     ' Contorno del minimapa (2px de grosor)
     Dim borderColor As RGBA
     borderColor = RGBA_From_Comp(200, 170, 90, 240)
@@ -346,17 +446,19 @@ Private Sub Render_HudTopRight()
     Dim statsY As Long
     statsY = MINIMAP_Y + MINIMAP_H + 10
 
-    Dim fuerzaTxt As String
-    fuerzaTxt = "Fuerza: " & UserStats.str
-    Dim fuerzaW As Long
-    fuerzaW = Engine_Text_Width(fuerzaTxt, False)
-    Call RenderHudTextLine(fuerzaTxt, MINIMAP_X + MINIMAP_W - fuerzaW, statsY, 120, 255, 255, 255)
+    If LenB(g_str_text) = 0 Or g_str_value <> UserStats.str Then
+        g_str_value = UserStats.str
+        g_str_text = "Fuerza: " & g_str_value
+        g_str_width = HudTextWidth(g_str_text)
+    End If
+    Call RenderHudTextLine(g_str_text, MINIMAP_X + MINIMAP_W - g_str_width, statsY, 120, 255, 255, 255)
 
-    Dim agiTxt As String
-    agiTxt = "Agilidad: " & UserStats.Agi
-    Dim agiW As Long
-    agiW = Engine_Text_Width(agiTxt, False)
-    Call RenderHudTextLine(agiTxt, MINIMAP_X + MINIMAP_W - agiW, statsY + 16, 120, 255, 255, 255)
+    If LenB(g_agi_text) = 0 Or g_agi_value <> UserStats.Agi Then
+        g_agi_value = UserStats.Agi
+        g_agi_text = "Agilidad: " & g_agi_value
+        g_agi_width = HudTextWidth(g_agi_text)
+    End If
+    Call RenderHudTextLine(g_agi_text, MINIMAP_X + MINIMAP_W - g_agi_width, statsY + 16, 120, 255, 255, 255)
     Exit Sub
 Render_HudTopRight_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModFullscreenHud.Render_HudTopRight", Erl)

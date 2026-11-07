@@ -40,6 +40,11 @@ End Enum
 Private g_buttons_active As Boolean
 Private g_hovered_button As Long
 
+' E3: cache de los BMP de los botones (antes LoadInterface releia/descomprimia 15 por repintado).
+' Se vacia si cambia el idioma (los BMP son localizados).
+Private g_pic_cache      As Collection
+Private g_pic_cache_lang As Long
+
 Public Sub Set_FullscreenButtonsActive(ByVal active As Boolean)
     On Error GoTo Err_h
     g_buttons_active = active
@@ -126,14 +131,31 @@ Private Sub DrawButton(ByVal buttonId As e_FullButtonId, ByVal defaultBmp As Str
         bmp = defaultBmp
     End If
     Dim pic As IPictureDisp
-    Set pic = LoadInterface(bmp)
+    Set pic = GetButtonPicture(bmp)
     If pic Is Nothing Then
-        Set pic = LoadInterface(defaultBmp)
+        Set pic = GetButtonPicture(defaultBmp)
     End If
     If Not (pic Is Nothing) Then
         frmMain.picFullscreenButtons.PaintPicture pic, bx, by, BUTTON_SIZE, BUTTON_SIZE
     End If
 End Sub
+
+Private Function GetButtonPicture(ByVal bmpName As String) As IPictureDisp
+    On Error Resume Next
+    If g_pic_cache Is Nothing Then Set g_pic_cache = New Collection
+    If g_pic_cache_lang <> language Then
+        Set g_pic_cache = New Collection
+        g_pic_cache_lang = language
+    End If
+    Dim cached As IPictureDisp
+    Set cached = g_pic_cache.Item(bmpName)
+    If cached Is Nothing Then
+        Err.Clear
+        Set cached = LoadInterface(bmpName)
+        If Not (cached Is Nothing) Then g_pic_cache.Add cached, bmpName
+    End If
+    Set GetButtonPicture = cached
+End Function
 
 Public Sub Handle_FullscreenButtonsMouseMove(ByVal x As Single, ByVal y As Single)
     On Error Resume Next
