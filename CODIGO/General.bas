@@ -1167,6 +1167,7 @@ Public Sub CloseClient()
     On Error GoTo CloseClient_Err
     UserSaliendo = True
     Call SaveConfig
+    Call GuardianPipeReset
     Call UnloadAntiCheat
     Call PrevInstance.ReleaseInstance
     ao20audio.StopAllPlayback

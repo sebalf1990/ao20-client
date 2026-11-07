@@ -2124,6 +2124,7 @@ Public Sub start()
             Call svb_run_callbacks
         #End If
         Call UpdateAntiCheat
+        Call GuardianPipePoll
     Loop
     EngineRun = False
     Call CloseClient

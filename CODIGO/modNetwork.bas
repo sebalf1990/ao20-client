@@ -71,6 +71,7 @@ End Sub
 
 
 Public Sub Disconnect()
+    Call GuardianPipeReset
     If Not Client Is Nothing Then
         Call Client.Close(True)
         Unload frmConnecting
@@ -125,6 +126,7 @@ End Sub
 
 Private Sub OnClientClose(ByVal code As Long)
     On Error GoTo OnClientClose_Err:
+    Call GuardianPipeReset
     Call Protocol_Writes.Clear
     Call ModLogin.OnClientDisconnect(code)
     Exit Sub
@@ -214,6 +216,7 @@ send_Err:
 End Sub
 
 Public Sub Disconnect()
+    Call GuardianPipeReset
     Call Protocol_Writes.Clear
     Set Protocol_Writes.Writer = Nothing
     Set Protocol_Writes.Writer = New clsNetWriter

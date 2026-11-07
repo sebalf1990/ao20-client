@@ -5997,3 +5997,16 @@ WriteAntiCheatMessage_Err:
     Call Writer.Clear
     Call RegistrarError(Err.Number, Err.Description, "Argentum20.Protocol_Writes.WriteAntiCheatMessage", Erl)
 End Sub
+
+' E4c antitrampas (modGuardianPipe): reenvia al server la linea firmada que contesto el guardian. Solo se llama despues de
+' haber recibido eGuardianChallenge (invariante del diseno, 4). El server la lee con ReadString8.
+Public Sub WriteGuardianHeartbeat(ByVal linea As String)
+    On Error GoTo WriteGuardianHeartbeat_Err
+    Call Writer.WriteInt16(ClientPacketID.eGuardianHeartbeat)
+    Call Writer.WriteString8(linea)
+    Call modNetwork.send(Writer)
+    Exit Sub
+WriteGuardianHeartbeat_Err:
+    Call Writer.Clear
+    Call RegistrarError(Err.Number, Err.Description, "Argentum20.Protocol_Writes.WriteGuardianHeartbeat", Erl)
+End Sub
