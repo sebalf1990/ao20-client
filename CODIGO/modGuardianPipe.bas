@@ -47,6 +47,9 @@ Private m_RxOverflow     As Boolean
 Private m_LastPoll       As Long
 Private m_LastOpenTry    As Long
 Private m_OpenTried      As Boolean
+Private m_LoggedErr      As Boolean   ' diagnosticos: a lo sumo uno de cada tipo por sesion de pipe
+Private m_LoggedOpen     As Boolean
+Private m_LoggedBroken   As Boolean
 Private m_LastBeat       As Long
 
 ' Handler de eGuardianChallenge: guarda el desafio y (re)arranca la sesion con el guardian.
@@ -58,7 +61,10 @@ Public Sub GuardianPipeOnChallenge(ByVal nHex As String, ByVal intervalSec As Lo
     If Not IsValidNHex(nHex) Then Exit Sub
     If intervalSec <= 0 Or intervalSec > GP_MAX_INTERVAL_SEC Then intervalSec = GP_DEFAULT_INTERVAL_SEC
     charId = GetSelectedCharIDFromName(userName)
-    If charId <= 0 Then Exit Sub
+    If charId <= 0 Then
+        Call GuardianLogOnce(m_LoggedErr, "char_id no resuelto (0): no se inicia la sesion con el guardian")
+        Exit Sub
+    End If
     m_NHex = nHex
     m_CharId = charId
     m_IntervalSec = intervalSec
@@ -82,6 +88,11 @@ Public Sub GuardianPipeReset()
     m_RxBuffer = vbNullString
     m_RxOverflow = False
     m_OpenTried = False
+    m_LastPoll = 0
+    m_LastOpenTry = 0
+    m_LoggedErr = False
+    m_LoggedOpen = False
+    m_LoggedBroken = False
 End Sub
 
 ' Se llama desde el loop principal (junto a UpdateAntiCheat). Sin desafio pendiente es solo un If.
@@ -112,7 +123,10 @@ Public Sub GuardianPipePoll()
     Exit Sub
 GuardianPipePoll_Err:
     ' Nunca cartel ni crash: se cierra el pipe y se reintenta mas tarde.
+    Dim errText As String
+    errText = "GuardianPipePoll error " & CStr(Err.Number) & ": " & Err.Description
     On Error Resume Next
+    Call GuardianLogOnce(m_LoggedErr, errText)
     Call ClosePipe
     m_NeedHello = True
     m_OpenTried = True
@@ -147,16 +161,24 @@ Private Function OpenPipe() As Boolean
     On Error GoTo OpenPipe_Err
     Dim h As Long
     Dim pipeMode As Long
+    Dim dllError As Long
     h = GP_CreateFile(GP_PIPE_NAME_PREFIX & CStr(GP_GetCurrentProcessId()), GP_GENERIC_READ_WRITE, 0&, 0&, GP_OPEN_EXISTING, 0&, 0&)
     If h = GP_INVALID_HANDLE Or h = 0 Then Exit Function
     pipeMode = GP_PIPE_NOWAIT
-    Call GP_SetNamedPipeHandleState(h, pipeMode, 0&, 0&)
+    If GP_SetNamedPipeHandleState(h, pipeMode, 0&, 0&) = 0 Then
+        dllError = Err.LastDllError
+        Call GP_CloseHandle(h)
+        Call GuardianLogOnce(m_LoggedErr, "SetNamedPipeHandleState fallo (LastDllError " & CStr(dllError) & "): pipe descartado")
+        Exit Function
+    End If
     m_Pipe = h
+    Call GuardianLogOnce(m_LoggedOpen, "pipe del guardian abierto")
     m_RxBuffer = vbNullString
     m_RxOverflow = False
     OpenPipe = True
     Exit Function
 OpenPipe_Err:
+    Call GuardianLogOnce(m_LoggedErr, "OpenPipe error " & CStr(Err.Number) & ": " & Err.Description)
     OpenPipe = False
 End Function
 
@@ -171,6 +193,7 @@ End Sub
 ' Pipe roto: se cierra y se reintenta en 30 s (con HELLO de nuevo al reconectar).
 Private Sub OnPipeBroken()
     On Error Resume Next
+    Call GuardianLogOnce(m_LoggedBroken, "pipe del guardian roto: se cierra y se reintenta")
     Call ClosePipe
     m_NeedHello = True
     m_OpenTried = True
@@ -246,7 +269,7 @@ Private Sub ConsumeBytes(ByVal incoming As String)
             m_RxOverflow = False
         Else
             If Right$(lineText, 1) = vbCr Then lineText = Left$(lineText, Len(lineText) - 1)
-            If Len(lineText) > 0 And Len(lineText) <= GP_MAX_LINE Then
+            If Len(lineText) > 0 And Len(lineText) <= GP_MAX_LINE And IsPrintableAscii(lineText) Then
                 m_GotLineSinceHello = True
                 If m_Pending Then Call WriteGuardianHeartbeat(lineText)
             End If
@@ -257,4 +280,23 @@ Private Sub ConsumeBytes(ByVal incoming As String)
         m_RxBuffer = vbNullString
         m_RxOverflow = True
     End If
+End Sub
+
+' Solo ASCII imprimible 0x20-0x7E (el server igual filtra el charset; esto evita reenviar basura).
+Private Function IsPrintableAscii(ByVal text As String) As Boolean
+    Dim i As Long
+    Dim code As Long
+    For i = 1 To Len(text)
+        code = AscW(Mid$(text, i, 1))
+        If code < &H20 Or code > &H7E Then Exit Function
+    Next i
+    IsPrintableAscii = True
+End Function
+
+' Diagnostico al log de errores del cliente (nunca cartel). Un solo aviso por bandera hasta el proximo reset.
+Private Sub GuardianLogOnce(ByRef alreadyLogged As Boolean, ByVal message As String)
+    On Error Resume Next
+    If alreadyLogged Then Exit Sub
+    alreadyLogged = True
+    Call RegistrarError(0, message, "modGuardianPipe")
 End Sub
