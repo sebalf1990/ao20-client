@@ -2083,6 +2083,7 @@ Public Sub start()
                     If frmMain.MiniMap.visible = True And CenteredMinimap <> 0 Then
                         Call DrawCenteredMinimap
                     End If
+                    If MinimapPingsNeedRedraw() Then MinimapRadarDirty = True   ' plan radar-v2 E6: la marca late
                     If MinimapRadarDirty Then
                         MinimapRadarDirty = False
                         Call DibujarMiniMapa

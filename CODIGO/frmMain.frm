@@ -3069,6 +3069,11 @@ End Sub
 Private Sub MiniMap_MouseDown(Button As Integer, Shift As Integer, x As Single, y As Single)
     On Error GoTo MiniMap_MouseDown_Err
     Call GetMinimapPosition(x, y)
+    ' Plan radar-v2 E6: marcar un punto (default Shift+clic izquierdo, configurable en /RADAR).
+    If IsMinimapPingClick(Button, Shift) Then
+        Call RequestMinimapPing(x, y)
+        Exit Sub
+    End If
     If Button = vbRightButton Then
         Call ParseUserCommand("/TELEP YO " & UserMap & " " & CByte(x) & " " & CByte(y))
         Exit Sub
