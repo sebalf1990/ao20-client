@@ -995,7 +995,11 @@ Public Sub CargarMapa(ByVal map As Integer)
         Next i
     End If
     #If Compresion = 1 Then
-        Delete_File Windows_Temp_Dir & "mapa" & map & ".csm"
+        ' E4b: en FULL, SwitchMap llama enseguida a ViewportNeighbor_PrepareForMap, que relee este
+        ' mismo .csm (lista de TE) y lo borra al terminar: no borrarlo aca evita extraerlo dos veces.
+        If Not ViewportDebug_IsFullscreen() Then
+            Delete_File Windows_Temp_Dir & "mapa" & map & ".csm"
+        End If
     #End If
     Exit Sub
 CargarMapa_Err:
