@@ -796,12 +796,22 @@ Public Sub render()
     ' Dibujar al final del frame evita que el batch de RenderScreen lo tape o lo descarte.
     Call RenderScreenStatusFX
     ' Overlay del PoC viewport (debug): siempre al final, antes del Present.
+    Dim perfT As Double
+    perfT = Perf_FrameStart()
     Call Render_ViewportDebugOverlay
+    Call Perf_FrameAdd(PERF_PIECE_CONSOLE, perfT)
     ' HUD vital en modo viewport fullscreen (Etapa 2 plan 21.002)
+    perfT = Perf_FrameStart()
     Call Render_FullscreenHud
-        Call Render_FullscreenGmBar
+    Call Perf_FrameAdd(PERF_PIECE_HUD, perfT)
+    perfT = Perf_FrameStart()
+    Call Render_FullscreenGmBar
+    Call Perf_FrameAdd(PERF_PIECE_GMBAR, perfT)
     ' Buffs, debuffs y cooldowns modernos en FULL (Etapa 4 plan 21.002).
+    perfT = Perf_FrameStart()
     Call Render_FullscreenBuffsPanel
+    Call Perf_FrameAdd(PERF_PIECE_BUFFS, perfT)
+    Call Perf_FrameEnd
 
     #If DXUI = 0 Then
         Call Engine_EndScene(Render_Main_Rect)

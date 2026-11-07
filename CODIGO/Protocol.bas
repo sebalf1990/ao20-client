@@ -699,10 +699,8 @@ Public Sub HandleDisconnect()
     End If
     Call SaveSetting("OPCIONES", "LastScroll", hlst.Scroll)
     ' Plan 21.002 V9.12: preservar viewport FULL al relogear.
-    If Is_RendererStateFullscreen() Then
-        Call Mark_PendingRestoreFullscreen
-        Call ExitViewportFullscreen
-    End If
+    ' E1: helper idempotente (marca restore si estaba en FULL, sale a clasico y limpia buffs/CDs).
+    Call Restore_ClassicAfterDisconnect
     Mod_Declaraciones.Connected = False
     Call ResetearUserMacro
     'Close connection

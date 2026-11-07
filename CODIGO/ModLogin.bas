@@ -371,6 +371,7 @@ Public Sub GoToLogIn()
 End Sub
 
 Public Sub LogOut()
+    Call Restore_ClassicAfterDisconnect
     frmDebug.add_text_tracebox "Vuelvo al login, debería borrar el token"
     Auth_state = e_state.Idle
     Call ComprobarEstado
@@ -542,6 +543,8 @@ Public Sub OnClientDisconnect(ByVal Error As Long)
 
     frmConnect.MousePointer = 1
     frmMain.ShowFPS.enabled = False
+    ' E1: cualquier corte de red restaura el HUD clasico si habia FULL (idempotente).
+    Call Restore_ClassicAfterDisconnect
 
     Select Case Error
 

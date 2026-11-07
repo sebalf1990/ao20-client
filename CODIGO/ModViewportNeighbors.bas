@@ -173,7 +173,9 @@ Public Sub ViewportNeighbor_RenderLayer(ByVal Layer As Integer, _
     Dim direction As Integer
     Dim screenX As Integer
     Dim screenY As Integer
+    Dim perfT As Double
 
+    perfT = Perf_FrameStart()
     For virtualY = RawMinY To RawMaxY
         For virtualX = RawMinX To RawMaxX
             If virtualX < XMinMapSize Or virtualX > XMaxMapSize Or virtualY < YMinMapSize Or virtualY > YMaxMapSize Then
@@ -189,6 +191,7 @@ Public Sub ViewportNeighbor_RenderLayer(ByVal Layer As Integer, _
             End If
         Next virtualX
     Next virtualY
+    Call Perf_FrameAdd(PERF_PIECE_NEIGHBORS, perfT)
 
     Exit Sub
 ViewportNeighbor_RenderLayer_Err:
@@ -343,7 +346,10 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
             ReDim Blqs(1 To .NumeroBloqueados)
             Get #fh, , Blqs
             For i = 1 To .NumeroBloqueados
-                g_neighbor_data(direction, Blqs(i).x, Blqs(i).y).Blocked = Blqs(i).lados
+                ' E1: coordenadas fuera de 1..MAP_MAX_TILES se saltean (no abortan la carga).
+                If Blqs(i).x >= 1 And Blqs(i).x <= MAP_MAX_TILES And Blqs(i).y >= 1 And Blqs(i).y <= MAP_MAX_TILES Then
+                    g_neighbor_data(direction, Blqs(i).x, Blqs(i).y).Blocked = Blqs(i).lados
+                End If
             Next i
         End If
 
@@ -354,19 +360,22 @@ Private Function ViewportNeighbor_LoadMap(ByVal direction As Integer, ByVal Reso
                 For i = 1 To .NumeroLayers(layer)
                     x = L(i).x
                     y = L(i).y
-                    With g_neighbor_data(direction, x, y)
-                        .Graphic(layer).GrhIndex = L(i).GrhIndex
-                        .Graphic(layer).x = x * TilePixelWidth
-                        .Graphic(layer).y = y * TilePixelHeight
-                        Call InitGrh(.Graphic(layer), .Graphic(layer).GrhIndex)
-                        If layer = 1 Then
-                            If ViewportNeighbor_IsWaterGrh(.Graphic(1).GrhIndex) Then
-                                .Blocked = .Blocked Or FLAG_AGUA
-                            ElseIf ViewportNeighbor_IsLavaGrh(.Graphic(1).GrhIndex) Then
-                                .Blocked = .Blocked Or FLAG_LAVA
+                    ' E1: coordenadas fuera de 1..MAP_MAX_TILES se saltean (no abortan la carga).
+                    If x >= 1 And x <= MAP_MAX_TILES And y >= 1 And y <= MAP_MAX_TILES Then
+                        With g_neighbor_data(direction, x, y)
+                            .Graphic(layer).GrhIndex = L(i).GrhIndex
+                            .Graphic(layer).x = x * TilePixelWidth
+                            .Graphic(layer).y = y * TilePixelHeight
+                            Call InitGrh(.Graphic(layer), .Graphic(layer).GrhIndex)
+                            If layer = 1 Then
+                                If ViewportNeighbor_IsWaterGrh(.Graphic(1).GrhIndex) Then
+                                    .Blocked = .Blocked Or FLAG_AGUA
+                                ElseIf ViewportNeighbor_IsLavaGrh(.Graphic(1).GrhIndex) Then
+                                    .Blocked = .Blocked Or FLAG_LAVA
+                                End If
                             End If
-                        End If
-                    End With
+                        End With
+                    End If
                 Next i
             End If
         Next layer

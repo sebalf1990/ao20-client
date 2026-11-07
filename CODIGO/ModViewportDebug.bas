@@ -76,6 +76,28 @@ Private Const BTN_W           As Long = 38
 Private Const BTN_H           As Long = 16
 Private Const BTN_PAD_X       As Long = 4
 
+' Log a archivo: rotacion simple (plan 2026-11-07-fullscreen-pulido-y-vecinos E1).
+Private Const LOG_MAX_BYTES   As Long = 1048576
+Private g_log_disabled        As Boolean
+
+' E0 medicion (plan 2026-11-07-fullscreen-pulido-y-vecinos): solo al log diag.
+' Apagar poniendo PERF_ENABLED en False (pendiente: sacar al cerrar el plan).
+Private Const PERF_ENABLED      As Boolean = True
+Private Const PERF_WINDOW_MS    As Double = 5000
+Public Const PERF_PIECE_HUD       As Long = 0
+Public Const PERF_PIECE_CONSOLE   As Long = 1
+Public Const PERF_PIECE_BUFFS     As Long = 2
+Public Const PERF_PIECE_GMBAR     As Long = 3
+Public Const PERF_PIECE_NEIGHBORS As Long = 4
+Public Const PERF_PIECE_BUTTONS   As Long = 5
+Private Const PERF_PIECE_MAX      As Long = 5
+Private Declare Function QueryPerformanceCounter Lib "kernel32" (lpPerformanceCount As Currency) As Long
+Private Declare Function QueryPerformanceFrequency Lib "kernel32" (lpFrequency As Currency) As Long
+Private g_perf_freq           As Double
+Private g_perf_acc(0 To 5)    As Double
+Private g_perf_frames         As Long
+Private g_perf_window_start   As Double
+
 ' ============== API: estado ==============
 
 Public Sub ViewportDebug_ToggleOverlay()
@@ -235,8 +257,8 @@ Public Sub ViewportDebug_PushConsoleLine(ByVal text As String, _
     cleanText = Replace(cleanText, vbCr, " ")
     Dim cat As Byte
     cat = ClassifyConsoleCategory(red, green, blue, CBool(bold), CBool(italic))
+    ' D5 (2026-11-07): el chat/consola NO se escribe a disco; solo [MODE]/[OVERLAY]/diag/[PERF].
     Call PushOneRingEntry(cleanText, red, green, blue, bold, italic, appendToPrevious, cat)
-    Call ViewportDebug_AppendLog(text, red, green, blue)
     Exit Sub
 ViewportDebug_PushConsoleLine_Err:
     ' No reportar via RegistrarError para evitar recursion (RegistrarError podria llamar consola).
@@ -605,21 +627,114 @@ End Sub
 
 Private Sub ViewportDebug_AppendLog(ByVal text As String, ByVal R As Integer, ByVal G As Integer, ByVal B As Integer)
     On Error GoTo ViewportDebug_AppendLog_Err
-    If Not g_log_initialized Then
-        g_log_path = App.path & "\logs\viewport_debug.log"
-        ' Asumimos carpeta logs existe (la convencion del cliente ya escribe Errores.log ahi).
-        ' Si no existe el error cae a Resume Next y no logueamos nada.
-        g_log_initialized = True
-    End If
+    If g_log_disabled Then Exit Sub
     Dim f As Integer
+    If Not g_log_initialized Then
+        g_log_initialized = True
+        Dim logDir As String
+        logDir = App.path & "\logs"
+        On Error Resume Next
+        If LenB(Dir$(logDir, vbDirectory)) = 0 Then MkDir logDir
+        If LenB(Dir$(logDir, vbDirectory)) = 0 Then g_log_disabled = True
+        On Error GoTo ViewportDebug_AppendLog_Err
+        If g_log_disabled Then Exit Sub
+        g_log_path = logDir & "\viewport_debug.log"
+        Call ViewportDebug_RotateLog(logDir)
+    End If
     f = FreeFile
     Open g_log_path For Append As #f
     Print #f, format$(Now, "yyyy-mm-dd hh:nn:ss") & " [" & R & "," & G & "," & B & "] " & text
     Close #f
     Exit Sub
 ViewportDebug_AppendLog_Err:
-    ' No re-reportar: el log es best-effort.
-    Resume Next
+    ' No re-reportar: el log es best-effort. Sin Resume Next (evita Print/Close sobre un handle invalido).
+    On Error Resume Next
+    Close #f
+End Sub
+
+' Al primer uso de la sesion: si el log pesa mas de 1 MB, pasa a viewport_debug.old.log (pisa el anterior).
+Private Sub ViewportDebug_RotateLog(ByVal logDir As String)
+    On Error Resume Next
+    If LenB(Dir$(g_log_path)) = 0 Then Exit Sub
+    If FileLen(g_log_path) <= LOG_MAX_BYTES Then Exit Sub
+    Dim oldPath As String
+    oldPath = logDir & "\viewport_debug.old.log"
+    If LenB(Dir$(oldPath)) > 0 Then Kill oldPath
+    Name g_log_path As oldPath
+End Sub
+
+' ============== PERF (E0) ==============
+
+' Milisegundos de un contador de alta resolucion. Devuelve 0 si la medicion esta apagada.
+Public Function Perf_Now() As Double
+    If Not PERF_ENABLED Then Exit Function
+    Dim counter As Currency
+    If g_perf_freq = 0 Then
+        Dim freq As Currency
+        If QueryPerformanceFrequency(freq) = 0 Then
+            g_perf_freq = -1
+        Else
+            g_perf_freq = CDbl(freq)
+        End If
+    End If
+    If g_perf_freq <= 0 Then Exit Function
+    If QueryPerformanceCounter(counter) = 0 Then Exit Function
+    Perf_Now = CDbl(counter) / g_perf_freq * 1000#
+End Function
+
+' Igual que Perf_Now pero solo mide mientras estamos en FULL (0 = no medir).
+Public Function Perf_FrameStart() As Double
+    If Not PERF_ENABLED Then Exit Function
+    If Not g_viewport_full Then Exit Function
+    Perf_FrameStart = Perf_Now()
+End Function
+
+Public Sub Perf_FrameAdd(ByVal piece As Long, ByVal startMs As Double)
+    If startMs = 0 Then Exit Sub
+    If piece < 0 Or piece > PERF_PIECE_MAX Then Exit Sub
+    g_perf_acc(piece) = g_perf_acc(piece) + (Perf_Now() - startMs)
+End Sub
+
+Private Sub Perf_ResetFrameStats()
+    Dim i As Long
+    For i = 0 To PERF_PIECE_MAX
+        g_perf_acc(i) = 0
+    Next i
+    g_perf_frames = 0
+End Sub
+
+' Llamar una vez por frame al final de engine.render.
+Public Sub Perf_FrameEnd()
+    If Not PERF_ENABLED Then Exit Sub
+    If Not g_viewport_full Then
+        If g_perf_frames > 0 Or g_perf_window_start <> 0 Then
+            Call Perf_ResetFrameStats
+            g_perf_window_start = 0
+        End If
+        Exit Sub
+    End If
+    Dim nowMs As Double
+    nowMs = Perf_Now()
+    If g_perf_window_start = 0 Then g_perf_window_start = nowMs
+    g_perf_frames = g_perf_frames + 1
+    If nowMs - g_perf_window_start < PERF_WINDOW_MS Then Exit Sub
+    Dim n As Double
+    n = g_perf_frames
+    Call ViewportDebug_AppendDiagLog("[PERF] frame avg over " & g_perf_frames & " frames: hud=" & format$(g_perf_acc(PERF_PIECE_HUD) / n, "0.000") & _
+        " console=" & format$(g_perf_acc(PERF_PIECE_CONSOLE) / n, "0.000") & _
+        " buffs=" & format$(g_perf_acc(PERF_PIECE_BUFFS) / n, "0.000") & _
+        " gmbar=" & format$(g_perf_acc(PERF_PIECE_GMBAR) / n, "0.000") & _
+        " neighbors=" & format$(g_perf_acc(PERF_PIECE_NEIGHBORS) / n, "0.000") & _
+        " buttons=" & format$(g_perf_acc(PERF_PIECE_BUTTONS) / n, "0.000") & _
+        " fps=" & engine.fps & " (ms)")
+    Call Perf_ResetFrameStats
+    g_perf_window_start = nowMs
+End Sub
+
+' Una linea por cruce/cambio de mapa. startMs = Perf_Now() tomado al inicio de SwitchMap.
+Public Sub Perf_LogSwitchMap(ByVal mapId As Long, ByVal startMs As Double, ByVal cargarMs As Double, ByVal vecinosMs As Double)
+    If startMs = 0 Then Exit Sub
+    Call ViewportDebug_AppendDiagLog("[PERF] SwitchMap map=" & mapId & " total=" & format$(Perf_Now() - startMs, "0.0") & "ms cargar=" & format$(cargarMs, "0.0") & "ms vecinos=" & format$(vecinosMs, "0.0") & "ms full=" & IIf(g_viewport_full, "1", "0"))
 End Sub
 
 Private Function IsCategoryVisible(ByVal cat As Byte) As Boolean

@@ -19,6 +19,8 @@ Option Explicit
 
 Sub SwitchMap(ByVal map As Integer, Optional ByVal NewResourceMap As Integer = 0)
     On Error GoTo SwitchMap_Err
+    Dim perfStart As Double, perfT As Double, perfCargar As Double, perfVecinos As Double
+    perfStart = Perf_Now()
     ' During map transition, free up a batch of old textures if we’re over our MB threshold
     If Not SurfaceDB Is Nothing Then
         ' GetAllocatedBytes returns total usage in bytes, so convert to MB
@@ -56,8 +58,12 @@ Sub SwitchMap(ByVal map As Integer, Optional ByVal NewResourceMap As Integer = 0
     Dim OldMapHadRain As Boolean: OldMapHadRain = (MapDat.LLUVIA = 1)
     Dim OldMapHadSnow As Boolean: OldMapHadSnow = (MapDat.NIEVE = 1)
     'Cargamos el mapa.
+    perfT = Perf_Now()
     Call Recursos.CargarMapa(ResourceMap)
+    perfCargar = Perf_Now() - perfT
+    perfT = Perf_Now()
     Call ViewportNeighbor_PrepareForMap(ResourceMap)
+    perfVecinos = Perf_Now() - perfT
     map_light = global_light
     Call DibujarMiniMapa
     If isLogged Then Call NameMapa(ResourceMap)
@@ -102,6 +108,7 @@ Sub SwitchMap(ByVal map As Integer, Optional ByVal NewResourceMap As Integer = 0
         End If
         frmMain.Coord.ForeColor = RGB(170, 0, 0)
     End If
+    Call Perf_LogSwitchMap(map, perfStart, perfCargar, perfVecinos)
     Exit Sub
 SwitchMap_Err:
     Call RegistrarError(Err.Number, Err.Description, "TileEngine_Map.SwitchMap", Erl)
