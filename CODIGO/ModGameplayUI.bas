@@ -916,6 +916,9 @@ Public Sub EnterViewportFullscreen()
     Call Recalc_TileEngine_Viewport
     Call ViewportDebug_AppendDiagLog("[Enter] recalc done")
     Call ViewportDebug_SetViewportMode(True)
+    ' E4a: en HUD clasico los vecinos no se cargan; al entrar a FULL se preparan para el mapa actual.
+    ' Al salir no se liberan: la cache es acotada y el render ya los ignora fuera de FULL.
+    If ResourceMap > 0 Then Call ViewportNeighbor_PrepareForMap(ResourceMap)
     ' E1: el flag se marca recien con el layout aplicado (antes quedaba True si algo fallaba a mitad).
     g_renderer_state_saved = True
     Call ViewportDebug_AppendDiagLog("[Enter] OK")

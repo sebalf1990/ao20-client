@@ -62,7 +62,8 @@ Sub SwitchMap(ByVal map As Integer, Optional ByVal NewResourceMap As Integer = 0
     Call Recursos.CargarMapa(ResourceMap)
     perfCargar = Perf_Now() - perfT
     perfT = Perf_Now()
-    Call ViewportNeighbor_PrepareForMap(ResourceMap)
+    ' E4a: los vecinos solo se dibujan en FULL; en HUD clasico no se cargan (se preparan al entrar con F11).
+    If ViewportDebug_IsFullscreen() Then Call ViewportNeighbor_PrepareForMap(ResourceMap)
     perfVecinos = Perf_Now() - perfT
     map_light = global_light
     Call DibujarMiniMapa
