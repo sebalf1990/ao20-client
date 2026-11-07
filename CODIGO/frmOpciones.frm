@@ -524,6 +524,17 @@ Begin VB.Form frmOpciones
       Top             =   6840
       Width           =   300
    End
+   Begin VB.Label lblRadarOptions 
+      Alignment       =   2  'Center
+      BackStyle       =   0  'Transparent
+      Caption         =   "Opciones del radar"
+      ForeColor       =   &H0080FFFF&
+      Height          =   240
+      Left            =   2800
+      TabIndex        =   99
+      Top             =   7230
+      Width           =   2440
+   End
    Begin VB.Label txtMSens 
       Alignment       =   2  'Center
       BackStyle       =   0  'Transparent
@@ -1565,6 +1576,20 @@ ToggleExperienceButtons_Err:
     Call RegistrarError(Err.Number, Err.Description, "frmOpciones.ToggleExperienceButtons", Erl)
     Resume Next
 End Sub
+' Plan radar-v2 E2b: abre la ventana de opciones del radar.
+Private Sub lblRadarOptions_Click()
+    On Error GoTo lblRadarOptions_Click_Err
+    frmRadarOpciones.Show vbModal, Me
+    If CenteredMinimap <> 0 Then
+        chkCenteredMiniMap.Picture = LoadInterface("check-amarillo.bmp")
+    Else
+        chkCenteredMiniMap.Picture = Nothing
+    End If
+    Exit Sub
+lblRadarOptions_Click_Err:
+    Call RegistrarError(Err.Number, Err.Description, "frmOpciones.lblRadarOptions_Click", Erl)
+End Sub
+
 Public Sub ToggleMiniMapZoomButtons()
     On Error GoTo ToggleMiniMapZoomButtons_Err
     

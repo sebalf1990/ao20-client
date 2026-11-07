@@ -580,6 +580,9 @@ Public Sub ParseUserCommand(ByVal RawCommand As String)
                 Call LoadRadarColors
                 Call DibujarMiniMapa
                 Call ShowConsoleMsg("Colores del radar recargados desde radar_colors.ini.")
+            Case "/RADAR"
+                ' Plan radar-v2 E2b: ventana de opciones del radar (sin viaje al server).
+                frmRadarOpciones.Show , frmMain
             Case "/PANELGM"
                 Call WriteSOSShowList
                 Call WriteGMPanel

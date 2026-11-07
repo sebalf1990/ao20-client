@@ -66,6 +66,14 @@ Public RadarNpcSymbol_Banquero As Long       ' default dorado
 Public RadarPointSize As Byte
 ' Public para permitir reload via /RELOADRADARCOLORS.
 Public RadarColorsLoaded As Boolean
+' Plan radar-v2 E2b: opciones del radar del jugador (Configuracion.ini, seccion OPCIONES; ventana
+' frmRadarOpciones). Las capas ocultas solo se filtran al dibujar: el server manda igual.
+Public RadarShowParty As Boolean
+Public RadarShowClan As Boolean
+Public RadarShowQuests As Boolean
+Public RadarShowSymbols As Boolean
+Public RadarPalette As Byte            ' 0 normal (radar_colors.ini), 1 alto contraste, 2 daltonico
+Public RadarPointSizeOption As Byte    ' 0 = el de radar_colors.ini; 1..3 = elegido en las opciones
 
 Private Enum eRadarIcon
     eRadarIconNone = 0
@@ -1309,8 +1317,8 @@ Public Sub DibujarMiniMapa()
     If CenteredMinimap = 0 Then
         ' Pintar de fondo a frente para que hostiles y GMs queden encima de todo
         Call DrawRadarShape(RadarNeutralNpc, RadarNeutralNpcCount, RadarFill_NeutralNpc, RadarBorder_NeutralNpc, RadarPointSize)
-        Call DrawQuestNpcRadar(RadarQuestNpc, RadarQuestNpcState, RadarQuestNpcCount, RadarFill_QuestNpc, RadarBorder_QuestNpc, RadarPointSize)
-        Call DrawNpcSymbolRadar(RadarNpcSymbol, RadarNpcSymbolSubtype, RadarNpcSymbolCount, RadarNpcSymbol_Sacerdote, RadarNpcSymbol_Banquero, RadarPointSize)
+        If RadarShowQuests Then Call DrawQuestNpcRadar(RadarQuestNpc, RadarQuestNpcState, RadarQuestNpcCount, RadarFill_QuestNpc, RadarBorder_QuestNpc, RadarPointSize)
+        If RadarShowSymbols Then Call DrawNpcSymbolRadar(RadarNpcSymbol, RadarNpcSymbolSubtype, RadarNpcSymbolCount, RadarNpcSymbol_Sacerdote, RadarNpcSymbol_Banquero, RadarPointSize)
         Call DrawRadarShape(RadarGuardiaReal, RadarGuardiaRealCount, RadarFill_GuardiaReal, RadarBorder_GuardiaReal, RadarPointSize)
         Call DrawRadarShape(RadarGuardiaCaos, RadarGuardiaCaosCount, RadarFill_GuardiaCaos, RadarBorder_GuardiaCaos, RadarPointSize)
         Call DrawRadarShape(RadarMascota, RadarMascotaCount, RadarFill_Mascota, RadarBorder_Mascota, RadarPointSize)
@@ -1320,8 +1328,8 @@ Public Sub DibujarMiniMapa()
         Call DrawRadarShape(RadarUserCaos, RadarUserCaosCount, RadarFill_UserCaos, RadarBorder_UserCaos, RadarPointSize)
         Call DrawRadarShape(RadarUserGm, RadarUserGmCount, RadarFill_UserGm, RadarBorder_UserGm, RadarPointSize)
         Call DrawRadarShape(RadarHostiles, RadarHostileCount, RadarFill_Hostile, RadarBorder_Hostile, RadarPointSize)
-        Call DrawRadarShape(RadarClanMembers, RadarClanMembersCount, RadarFill_ClanMember, RadarBorder_ClanMember, RadarPointSize)
-        Call DrawRadarShape(RadarPartyMembers, RadarPartyMembersCount, RadarFill_PartyMember, RadarBorder_PartyMember, RadarPointSize)
+        If RadarShowClan Then Call DrawRadarShape(RadarClanMembers, RadarClanMembersCount, RadarFill_ClanMember, RadarBorder_ClanMember, RadarPointSize)
+        If RadarShowParty Then Call DrawRadarShape(RadarPartyMembers, RadarPartyMembersCount, RadarFill_PartyMember, RadarBorder_PartyMember, RadarPointSize)
     End If
     ' Repintar siempre (asegura que se borre lo viejo cuando no hay nada para dibujar)
     If CenteredMinimap = 0 Then frmMain.MiniMap.Refresh
@@ -1675,6 +1683,8 @@ Public Sub LoadRadarColors()
     RadarNpcSymbol_Sacerdote = RGB(80, 160, 255)
     RadarNpcSymbol_Banquero = RGB(255, 200, 50)
     RadarPointSize = 3
+    ' Capas visibles por defecto: si algo falla antes de ApplyRadarUserOptions no se oculta nada.
+    RadarShowParty = True: RadarShowClan = True: RadarShowQuests = True: RadarShowSymbols = True
     Dim path As String
     path = App.path & "\radar_colors.ini"
     If FileExist(path, vbNormal) Then
@@ -1719,11 +1729,77 @@ Public Sub LoadRadarColors()
         RadarNpcSymbol_Sacerdote = ParseRgbFromIni(path, "COLORS", "NpcSymbol_Sacerdote", RadarNpcSymbol_Sacerdote)
         RadarNpcSymbol_Banquero = ParseRgbFromIni(path, "COLORS", "NpcSymbol_Banquero", RadarNpcSymbol_Banquero)
     End If
+    Call ApplyRadarUserOptions
     RadarColorsLoaded = True
     Exit Sub
 LoadRadarColors_Err:
     RadarColorsLoaded = True
     Call RegistrarError(Err.Number, Err.Description, "ModUtils.LoadRadarColors", Erl)
+End Sub
+
+' Relee radar_colors.ini + opciones del jugador y repinta el minimapa (frmRadarOpciones).
+Public Sub ReloadRadarColors()
+    On Error GoTo ReloadRadarColors_Err
+    RadarColorsLoaded = False
+    Call LoadRadarColors
+    Call DibujarMiniMapa
+    Exit Sub
+ReloadRadarColors_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModUtils.ReloadRadarColors", Erl)
+End Sub
+
+' Opciones del jugador por encima de radar_colors.ini: capas visibles, tamano del punto y paleta.
+Private Sub ApplyRadarUserOptions()
+    On Error GoTo ApplyRadarUserOptions_Err
+    RadarShowParty = (GetSettingAsByte("OPCIONES", "RadarShowParty", 1) <> 0)
+    RadarShowClan = (GetSettingAsByte("OPCIONES", "RadarShowClan", 1) <> 0)
+    RadarShowQuests = (GetSettingAsByte("OPCIONES", "RadarShowQuests", 1) <> 0)
+    RadarShowSymbols = (GetSettingAsByte("OPCIONES", "RadarShowSymbols", 1) <> 0)
+    RadarPointSizeOption = GetSettingAsByte("OPCIONES", "RadarPointSize", 0)
+    If RadarPointSizeOption >= 1 And RadarPointSizeOption <= 3 Then RadarPointSize = RadarPointSizeOption
+    RadarPalette = GetSettingAsByte("OPCIONES", "RadarPalette", 0)
+    Select Case RadarPalette
+        Case 1: Call ApplyRadarPaletteHighContrast
+        Case 2: Call ApplyRadarPaletteColorBlind
+    End Select
+    Exit Sub
+ApplyRadarUserOptions_Err:
+    RadarShowParty = True: RadarShowClan = True: RadarShowQuests = True: RadarShowSymbols = True
+    Call RegistrarError(Err.Number, Err.Description, "ModUtils.ApplyRadarUserOptions", Erl)
+End Sub
+
+' Colores puros con borde blanco/negro, para fondos de minimapa cargados.
+Private Sub ApplyRadarPaletteHighContrast()
+    RadarFill_Hostile = RGB(255, 0, 0):            RadarBorder_Hostile = RGB(255, 255, 255)
+    RadarFill_NeutralNpc = RGB(255, 255, 255):     RadarBorder_NeutralNpc = RGB(0, 0, 0)
+    RadarFill_QuestNpc = RGB(255, 255, 0):         RadarBorder_QuestNpc = RGB(0, 0, 0)
+    RadarFill_GuardiaReal = RGB(0, 0, 255):        RadarBorder_GuardiaReal = RGB(255, 255, 255)
+    RadarFill_GuardiaCaos = RGB(128, 0, 0):        RadarBorder_GuardiaCaos = RGB(255, 255, 255)
+    RadarFill_Mascota = RGB(255, 128, 0):          RadarBorder_Mascota = RGB(0, 0, 0)
+    RadarFill_UserGm = RGB(255, 215, 0):           RadarBorder_UserGm = RGB(0, 0, 0)
+    RadarFill_UserCiudadano = RGB(0, 255, 255):    RadarBorder_UserCiudadano = RGB(0, 0, 0)
+    RadarFill_UserCriminal = RGB(255, 0, 255):     RadarBorder_UserCriminal = RGB(0, 0, 0)
+    RadarFill_UserImperial = RGB(0, 255, 255):     RadarBorder_UserImperial = RGB(255, 255, 255)
+    RadarFill_UserCaos = RGB(255, 0, 255):         RadarBorder_UserCaos = RGB(255, 255, 255)
+    RadarFill_PartyMember = RGB(0, 255, 0):        RadarBorder_PartyMember = RGB(0, 0, 0)
+    RadarFill_ClanMember = RGB(0, 128, 255):       RadarBorder_ClanMember = RGB(255, 255, 255)
+End Sub
+
+' Paleta Okabe-Ito: se distingue con deuteranopia y protanopia (no depende de rojo contra verde).
+Private Sub ApplyRadarPaletteColorBlind()
+    RadarFill_Hostile = RGB(213, 94, 0):           RadarBorder_Hostile = RGB(255, 255, 255)
+    RadarFill_NeutralNpc = RGB(255, 255, 255):     RadarBorder_NeutralNpc = RGB(0, 0, 0)
+    RadarFill_QuestNpc = RGB(240, 228, 66):        RadarBorder_QuestNpc = RGB(0, 0, 0)
+    RadarFill_GuardiaReal = RGB(255, 255, 255):    RadarBorder_GuardiaReal = RGB(0, 114, 178)
+    RadarFill_GuardiaCaos = RGB(0, 0, 0):          RadarBorder_GuardiaCaos = RGB(204, 121, 167)
+    RadarFill_Mascota = RGB(153, 153, 153):        RadarBorder_Mascota = RGB(230, 159, 0)
+    RadarFill_UserGm = RGB(230, 159, 0):           RadarBorder_UserGm = RGB(0, 0, 0)
+    RadarFill_UserCiudadano = RGB(86, 180, 233):   RadarBorder_UserCiudadano = RGB(0, 0, 0)
+    RadarFill_UserCriminal = RGB(204, 121, 167):   RadarBorder_UserCriminal = RGB(0, 0, 0)
+    RadarFill_UserImperial = RGB(86, 180, 233):    RadarBorder_UserImperial = RGB(255, 255, 255)
+    RadarFill_UserCaos = RGB(204, 121, 167):       RadarBorder_UserCaos = RGB(255, 255, 255)
+    RadarFill_PartyMember = RGB(0, 158, 115):      RadarBorder_PartyMember = RGB(255, 255, 255)
+    RadarFill_ClanMember = RGB(0, 114, 178):       RadarBorder_ClanMember = RGB(240, 228, 66)
 End Sub
 
 
