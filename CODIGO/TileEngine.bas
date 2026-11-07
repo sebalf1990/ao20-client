@@ -472,6 +472,10 @@ Public RadarQuestNpcState(1 To 100) As Byte
 Public RadarNpcSymbol(1 To 100) As t_RadarHostile
 Public RadarNpcSymbolCount As Integer
 Public RadarNpcSymbolSubtype(1 To 100) As Byte
+' Plan radar-v2 E4: jefes (icono por jefe; 0 = punto grande).
+Public RadarJefe(1 To 100) As t_RadarHostile
+Public RadarJefeCount As Integer
+Public RadarJefeIcono(1 To 100) As Byte
 Public RadarGuardiaReal(1 To 100) As t_RadarHostile
 Public RadarGuardiaRealCount As Integer
 Public RadarGuardiaCaos(1 To 100) As t_RadarHostile
