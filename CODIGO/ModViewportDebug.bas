@@ -227,7 +227,16 @@ Public Function ViewportDebug_HandleMouseDown(ByVal x As Long, ByVal y As Long, 
             End If
         End If
         ViewportDebug_HandleMouseDown = True
+    ElseIf isClick Then
+        ' E6: any click inside the console box is swallowed so it never reaches the world.
+        ViewportDebug_HandleMouseDown = True
     End If
+End Function
+
+' E6: True when the point is inside the FULL console box (used to block right/middle click-through).
+Public Function ViewportDebug_IsOverConsole(ByVal x As Long, ByVal y As Long) As Boolean
+    If Not g_viewport_full Then Exit Function
+    ViewportDebug_IsOverConsole = IsMouseOverConsole(x, y)
 End Function
 
 Public Sub ViewportDebug_ScrollConsole(ByVal deltaLines As Long)

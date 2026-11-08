@@ -3543,6 +3543,10 @@ Private Sub renderer_MouseUp(Button As Integer, Shift As Integer, x As Single, y
         Exit Sub
     End If
     If consumedKind = CLICK_CONSUMED Then Exit Sub
+    ' E6: right/middle button released over the FULL console box: no interaction menu or hotkey underneath.
+    If Button <> vbLeftButton And Not gDragState.active Then
+        If ViewportDebug_IsOverConsole(CLng(x), CLng(y)) Then Exit Sub
+    End If
 
     If Button = vbMiddleButton Then
         Dim HkMidSlot As Integer
@@ -3663,19 +3667,30 @@ Private Sub renderer_MouseDown(Button As Integer, Shift As Integer, x As Single,
     On Error GoTo renderer_MouseDown_Err
     ' V9.5: barra GM al top consume el click si cae adentro
     If Button = vbLeftButton Then m_consumedClick = CLICK_NONE
+    ' E6: renderer_Click/Form_DblClick run after MouseUp and act on MouseBoton, so a consumed click zeroes it
+    ' (otherwise the previous button leaked through and repeated the last world action).
+    If Button <> vbLeftButton Then
+        If ViewportDebug_IsOverConsole(CLng(x), CLng(y)) Then
+            MouseBoton = 0
+            Exit Sub
+        End If
+    End If
     If Is_FullscreenGmBarActive() And Button = vbLeftButton Then
         If Handle_GmBarClick(CLng(x), CLng(y)) Then
             m_consumedClick = CLICK_CONSUMED
+            MouseBoton = 0
             Exit Sub
         End If
     End If
     If ViewportDebug_IsFullscreen() And Button = vbLeftButton Then
         If ViewportDebug_HandleMouseDown(CLng(x), CLng(y), True) Then
             m_consumedClick = CLICK_CONSUMED
+            MouseBoton = 0
             Exit Sub
         End If
         If HudAvatar_HitTest(CLng(x), CLng(y)) Then
             m_consumedClick = CLICK_AVATAR
+            MouseBoton = 0
             Exit Sub
         End If
     End If
