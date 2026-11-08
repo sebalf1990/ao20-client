@@ -4132,8 +4132,8 @@ End Sub
 
 Public Sub SetMinimapPosition(ByVal Jugador As Integer, ByVal x As Integer, ByVal y As Integer)
     If CenteredMinimap = 0 Then
-        personaje(Jugador).Left = (x - HalfWindowTileWidth - 2) * (100 / (100 - 2 * HalfWindowTileWidth - 4)) - personaje(Jugador).Width \ 2 - 1
-        personaje(Jugador).Top = (y - HalfWindowTileHeight - 1) * (100 / (100 - 2 * HalfWindowTileHeight - 2)) - personaje(Jugador).Height \ 2 - 1
+        personaje(Jugador).Left = (x - MinimapHalfTileWidth() - 2) * (100 / (100 - 2 * MinimapHalfTileWidth() - 4)) - personaje(Jugador).Width \ 2 - 1
+        personaje(Jugador).Top = (y - MinimapHalfTileHeight() - 1) * (100 / (100 - 2 * MinimapHalfTileHeight() - 2)) - personaje(Jugador).Height \ 2 - 1
     Else
         ' In centered mode all dots are rendered by DirectX; hide the VB.Shape controls.
         personaje(Jugador).visible = False
