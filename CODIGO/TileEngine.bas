@@ -607,8 +607,14 @@ Sub ConvertCPtoTP(ByVal viewPortX As Integer, ByVal viewPortY As Integer, ByRef 
     If viewPortY < g_viewport_logical_top Or viewPortY > g_viewport_logical_top + g_viewport_logical_height Then Exit Sub
     ltx = UserPos.x + (viewPortX - g_viewport_logical_left) \ 32 - g_viewport_logical_width \ 64
     lty = UserPos.y + (viewPortY - g_viewport_logical_top) \ 32 - g_viewport_logical_height \ 64
-    tX = max(0, ltx)
-    tY = max(0, lty)
+    ' E5: clamp al rango del mapa (1..100). Antes tX/tY (Byte) tiraban error 6 por encima de 255 y los
+    ' callers indexan MapData(tX, tY), que solo existe en 1..100 (sobre todo con vecinos visibles en FULL).
+    If ltx < XMinMapSize Then ltx = XMinMapSize
+    If ltx > XMaxMapSize Then ltx = XMaxMapSize
+    If lty < YMinMapSize Then lty = YMinMapSize
+    If lty > YMaxMapSize Then lty = YMaxMapSize
+    tX = CByte(ltx)
+    tY = CByte(lty)
     Exit Sub
 ConvertCPtoTP_Err:
     Call RegistrarError(Err.Number, Err.Description, "TileEngine.ConvertCPtoTP", Erl)

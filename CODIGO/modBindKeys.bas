@@ -130,13 +130,45 @@ Public Sub LoadBindedKeys()
     For Index = 1 To NUMBINDS
         Bind = GetBind(DefaultBinds, UserBinds, CStr(Index))
         BindKeys(Index).KeyCode = val(General_Field_Read(1, Bind, ","))
-        BindKeys(Index).Name = General_Field_Read(2, Bind, ",")
+        BindKeys(Index).Name = BindDisplayName(BindKeys(Index).KeyCode, General_Field_Read(2, Bind, ","))
     Next Index
     Set DefaultBinds = Nothing
     Set UserBinds = Nothing
+    Call WarnDuplicatedBinds
     Exit Sub
 LoadBindedKeys_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModUtils.LoadBindedKeys", Erl)
+    Resume Next
+End Sub
+
+' E5: las teclas de funcion se rotulan por su keycode (el ini traia bind 22 = 123 rotulado "F11" siendo F12).
+' El keycode es lo que manda; el rotulo es solo para mostrar.
+Private Function BindDisplayName(ByVal bindKeyCode As Integer, ByVal storedName As String) As String
+    If bindKeyCode >= vbKeyF1 And bindKeyCode <= vbKeyF12 Then
+        BindDisplayName = "F" & (bindKeyCode - vbKeyF1 + 1)
+    Else
+        BindDisplayName = storedName
+    End If
+End Function
+
+' E5: avisa (log del viewport) si dos acciones comparten la misma tecla: en Accionar gana el primer Case
+' que coincida y la otra accion nunca se dispara. Las teclas en 0 (sin asignar) no cuentan.
+Private Sub WarnDuplicatedBinds()
+    On Error GoTo WarnDuplicatedBinds_Err
+    Dim firstBind As Integer
+    Dim secondBind As Integer
+    For firstBind = 1 To NUMBINDS - 1
+        If BindKeys(firstBind).KeyCode <> 0 Then
+            For secondBind = firstBind + 1 To NUMBINDS
+                If BindKeys(secondBind).KeyCode = BindKeys(firstBind).KeyCode Then
+                    Call ViewportDebug_AppendDiagLog("[Binds] duplicated key " & BindKeys(firstBind).KeyCode & " (" & BindKeys(firstBind).Name & ") on binds " & firstBind & " and " & secondBind & ": only one of them will fire")
+                End If
+            Next secondBind
+        End If
+    Next firstBind
+    Exit Sub
+WarnDuplicatedBinds_Err:
+    Call RegistrarError(Err.Number, Err.Description, "modBindKeys.WarnDuplicatedBinds", Erl)
     Resume Next
 End Sub
 
@@ -186,7 +218,7 @@ Sub LoadDefaultBinds()
     For Index = 1 To NUMBINDS
         temp = DefaultBinds.GetValue("DEFAULTS", CStr(Index))
         BindKeys(Index).KeyCode = val(General_Field_Read(1, temp, ","))
-        BindKeys(Index).Name = General_Field_Read(2, temp, ",")
+        BindKeys(Index).Name = BindDisplayName(BindKeys(Index).KeyCode, General_Field_Read(2, temp, ","))
     Next Index
     Set DefaultBinds = Nothing
     Exit Sub
@@ -203,7 +235,7 @@ Sub LoadDefaultBinds2()
     For Index = 1 To NUMBINDS
         temp = DefaultBinds.GetValue("DEFAULTSMODERN", CStr(Index))
         BindKeys(Index).KeyCode = val(General_Field_Read(1, temp, ","))
-        BindKeys(Index).Name = General_Field_Read(2, temp, ",")
+        BindKeys(Index).Name = BindDisplayName(BindKeys(Index).KeyCode, General_Field_Read(2, temp, ","))
     Next Index
     Set DefaultBinds = Nothing
     Exit Sub

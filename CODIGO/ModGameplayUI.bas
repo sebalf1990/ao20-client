@@ -608,6 +608,8 @@ Public Sub HandleKeyUp(KeyCode As Integer, Shift As Integer)
             ElseIf KeyCode = 80 And PescandoEspecial Then
                 Call IntentarObtenerPezEspecial
             ElseIf KeyCode = vbKeyF1 Then
+                ' E5: F1 es tambien la tecla por defecto del bind eHKey11 (hotkey 11). Accionar la consume antes,
+                ' asi que este atajo GM (/SM + /IRA) solo corre si eHKey11 se reasigna o queda en 0.
                 Call ParseUserCommand("/SM")
                 Call ParseUserCommand("/IRA " & targetName)
             End If
