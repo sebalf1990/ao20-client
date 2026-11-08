@@ -126,7 +126,8 @@ End Type
 ' cache quedarian viejas): se dibuja con la luz global vigente (g_neighbor_light).
 ' Tamano: Grh = 40 bytes en memoria (LenB) -> bloque = 4 * 40 + 2 = 162, alineado a 164 bytes;
 ' un mapa (100x100) = 1,64 MB. Se loguea Len/LenB real al reservar la cache ("[NEIGH] pool").
-' Capas del bloque: 1 piso, 2 encima del piso, 3 capa 3 vieja (capa 4 del mapa), 4 techos.
+' Capas del bloque: 1 piso, 2 encima del piso (y capa 3 de un W5L2 donde la 2 esta vacia), 3 capa 3
+' vieja (capa 4 del mapa), 4 techos.
 Private Type tNeighborBlock
     Graphic(1 To 4) As Grh
     Blocked As Integer
@@ -984,8 +985,13 @@ Private Sub ViewportNeighbor_StoreGrh(ByVal slot As Integer, ByVal fileLayer As 
     Select Case fileLayer
         Case 1
             blockLayer = 1
-        Case 2
+        Case 2, 3
+            ' E4e: la capa 3 de un W5L2 (encima del piso) comparte la capa 2 del bloque; solo entra
+            ' donde la 2 esta vacia (el vecino es solo decorado, no se agranda el bloque por 0 mapas).
             blockLayer = 2
+            If fileLayer = 3 Then
+                If g_pool_data(x, y, slot).Graphic(2).GrhIndex <> 0 Then Exit Sub
+            End If
         Case 4
             blockLayer = 3
         Case 5
@@ -1069,20 +1075,22 @@ Private Function ViewportNeighbor_ReadHeader(ByVal fh As Integer, ByRef MH As tM
 
     MH = emptyHeader
     Get #fh, , signatureOrBlocked
-    ' Plan 15.001: this reader only knows the legacy 4-layer CSM. A five-layer
-    ' file (signature W5L2, see Recursos.ReadCsmHeader) is skipped, not misread.
-    If signatureOrBlocked = CSM_FIVE_LAYER_SIGNATURE_NEIGHBOR Then Exit Function
-    MH.NumeroBloqueados = signatureOrBlocked
-    Get #fh, , MH.NumeroLayers(1)
-    Get #fh, , MH.NumeroLayers(2)
-    Get #fh, , MH.NumeroLayers(4)
-    Get #fh, , MH.NumeroLayers(5)
-    Get #fh, , MH.NumeroTriggers
-    Get #fh, , MH.NumeroLuces
-    Get #fh, , MH.NumeroParticulas
-    Get #fh, , MH.NumeroNPCs
-    Get #fh, , MH.NumeroOBJs
-    Get #fh, , MH.NumeroTE
+    If signatureOrBlocked = CSM_FIVE_LAYER_SIGNATURE_NEIGHBOR Then
+        ' E4e: .csm de 5 capas (firma W5L2): cabecera completa, igual que Recursos.ReadCsmHeader.
+        Get #fh, , MH
+    Else
+        MH.NumeroBloqueados = signatureOrBlocked
+        Get #fh, , MH.NumeroLayers(1)
+        Get #fh, , MH.NumeroLayers(2)
+        Get #fh, , MH.NumeroLayers(4)
+        Get #fh, , MH.NumeroLayers(5)
+        Get #fh, , MH.NumeroTriggers
+        Get #fh, , MH.NumeroLuces
+        Get #fh, , MH.NumeroParticulas
+        Get #fh, , MH.NumeroNPCs
+        Get #fh, , MH.NumeroOBJs
+        Get #fh, , MH.NumeroTE
+    End If
 
     If MH.NumeroBloqueados < 0 Or MH.NumeroBloqueados > CSM_MAX_RECORDS Then Exit Function
     For layer = 1 To CSM_MAX_LAYERS
