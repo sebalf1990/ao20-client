@@ -51,6 +51,10 @@ Private Type t_DebugConsoleLine
     wrapLines() As String
     wrapCount   As Integer
     wrapWidth   As Long
+    ' E6: set when the entry was added or extended since the last recompute; countedLines = wrapped lines
+    ' already accounted for (so only the new lines move the scroll anchor).
+    isNew        As Boolean
+    countedLines As Integer
 End Type
 
 Private g_ring(0 To RING_SIZE - 1) As t_DebugConsoleLine
@@ -93,7 +97,10 @@ Private Const UNREAD_H        As Long = 18
 Private Const UNREAD_TEXT_Y   As Long = 3
 Private Const UNREAD_BOTTOM   As Long = 4
 Private Const CONSOLE_SCROLLBAR_W As Long = 12
-Private g_new_msgs_pending    As Boolean
+Private g_pill_drawn          As Boolean
+Private g_pill_x              As Long
+Private g_pill_y              As Long
+Private g_pill_w              As Long
 Private g_console_unread      As Boolean
 Private g_unread_width        As Long
 
@@ -131,7 +138,6 @@ Public Sub ViewportDebug_SetViewportMode(ByVal IsFullscreen As Boolean)
     g_viewport_full = IsFullscreen
     g_console_scroll_lines = 0
     g_console_unread = False
-    g_new_msgs_pending = False
     g_wrap_dirty = True
     If IsFullscreen Then
         Call ViewportDebug_EnableMouseWheel
@@ -221,10 +227,8 @@ Public Function ViewportDebug_HandleMouseDown(ByVal x As Long, ByVal y As Long, 
         ViewportDebug_HandleMouseDown = True
         Exit Function
     End If
-    If isClick And g_console_unread Then
-        Dim pillX As Long, pillY As Long, pillW As Long
-        Call GetUnreadPillRect(consX, consY, consW, consH, pillX, pillY, pillW)
-        If x >= pillX And x < pillX + pillW And y >= pillY And y < pillY + UNREAD_H Then
+    If isClick And g_pill_drawn Then
+        If x >= g_pill_x And x < g_pill_x + g_pill_w And y >= g_pill_y And y < g_pill_y + UNREAD_H Then
             g_console_scroll_lines = 0
             g_console_unread = False
             ViewportDebug_HandleMouseDown = True
@@ -280,6 +284,10 @@ End Sub
 Private Sub Render_ConsoleUnreadPill(ByVal consX As Long, ByVal consY As Long, ByVal consW As Long, ByVal consH As Long)
     Dim pillX As Long, pillY As Long, pillW As Long
     Call GetUnreadPillRect(consX, consY, consW, consH, pillX, pillY, pillW)
+    g_pill_x = pillX
+    g_pill_y = pillY
+    g_pill_w = pillW
+    g_pill_drawn = True
     Dim pillBg As RGBA
     Dim pillBorder As RGBA
     Dim pillText(3) As RGBA
@@ -504,7 +512,6 @@ Private Sub PushOneRingEntry(ByVal text As String, _
                               ByVal appendToPrevious As Boolean, _
                               ByVal category As Byte)
     On Error Resume Next
-    g_new_msgs_pending = True
     If appendToPrevious And g_ring_count > 0 Then
         Dim lastIndex As Integer
         lastIndex = (g_ring_head - 1 + RING_SIZE) Mod RING_SIZE
@@ -513,6 +520,8 @@ Private Sub PushOneRingEntry(ByVal text As String, _
         room = CONSOLE_ENTRY_MAX_CHARS - Len(g_ring(lastIndex).text)
         If room > 0 Then
             g_ring(lastIndex).text = g_ring(lastIndex).text & Left$(text, room)
+            If Not g_ring(lastIndex).isNew Then g_ring(lastIndex).countedLines = g_ring(lastIndex).wrapCount
+            g_ring(lastIndex).isNew = True
             g_ring(lastIndex).wrapCount = 0
             g_wrap_dirty = True
         End If
@@ -529,6 +538,8 @@ Private Sub PushOneRingEntry(ByVal text As String, _
         .ts = FrameTime
         .category = category
         .wrapCount = 0
+        .isNew = True
+        .countedLines = 0
     End With
     g_wrap_dirty = True
     g_ring_head = (g_ring_head + 1) Mod RING_SIZE
@@ -597,6 +608,7 @@ End Sub
 
 Public Sub Render_ViewportDebugOverlay()
     On Error GoTo Render_ViewportDebugOverlay_Err
+    g_pill_drawn = False
     If Not g_viewport_full And Not g_overlay_visible Then Exit Sub
 
     Dim sw As Long, sh As Long
@@ -701,7 +713,7 @@ Public Sub Render_ViewportDebugOverlay()
 
         Dim skippedLines As Long
         Dim totalVisual As Long
-        Dim previousTotal As Long
+        Dim newLines As Long
         Call EnsureFiltersLoaded
         wrapWidth = consW - 24
         ' E3: el total de lineas visuales solo se recalcula si cambio el texto, el filtro o el ancho.
@@ -711,20 +723,24 @@ Public Sub Render_ViewportDebugOverlay()
                 If IsCategoryVisible(g_ring(idx).category) Then
                     Call EnsureEntryWrapped(idx, wrapWidth)
                     totalVisual = totalVisual + g_ring(idx).wrapCount
+                    ' E6: only lines of entries added/extended since the last recompute count as new (a filter or
+                    ' width change re-wraps old entries but never sets isNew).
+                    If g_ring(idx).isNew Then
+                        newLines = newLines + g_ring(idx).wrapCount - g_ring(idx).countedLines
+                        g_ring(idx).countedLines = g_ring(idx).wrapCount
+                    End If
                 End If
+                g_ring(idx).isNew = False
             Next i
-            previousTotal = g_console_total_visual
             g_console_total_visual = totalVisual
             g_wrap_total_width = wrapWidth
             g_wrap_dirty = False
             ' E6: scroll counts from the newest line, so when lines arrive while scrolled up the offset grows by the
             ' same amount to keep the same text on screen, and the indicator is raised. At the bottom nothing changes.
-            If g_new_msgs_pending Then
-                If g_console_scroll_lines > 0 And totalVisual > previousTotal Then
-                    g_console_scroll_lines = g_console_scroll_lines + (totalVisual - previousTotal)
-                    g_console_unread = True
-                End If
-                g_new_msgs_pending = False
+            ' The count comes from the new lines themselves, so a full ring (old lines dropped) still works.
+            If newLines > 0 And g_console_scroll_lines > 0 Then
+                g_console_scroll_lines = g_console_scroll_lines + newLines
+                g_console_unread = True
             End If
         End If
         Call ClampConsoleScroll

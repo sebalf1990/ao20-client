@@ -334,12 +334,21 @@ End Sub
 ' E6: flanco de la tecla Esc. Solo actua si hay algo que cerrar y nada mas usaria la tecla.
 Private Sub UpdateEscClose()
     On Error GoTo Err_h
-    If GetAsyncKeyState(vbKeyEscape) >= 0 Then
-        g_esc_was_down = False
+    Dim escState As Integer
+    Dim escHeld As Boolean
+    Dim escPressed As Boolean
+    ' The call also clears the "pressed since last call" bit, so it must run every frame.
+    escState = GetAsyncKeyState(vbKeyEscape)
+    escHeld = (escState < 0)
+    If GetActiveWindow() = 0 Then
+        ' Game not focused: a key already held when focus returns is not a new press.
+        g_esc_was_down = escHeld
         Exit Sub
     End If
-    If g_esc_was_down Then Exit Sub
-    g_esc_was_down = True
+    ' New press = went down since last frame, or a tap shorter than a frame (low bit).
+    escPressed = (escHeld And Not g_esc_was_down) Or ((escState And 1) <> 0)
+    g_esc_was_down = escHeld
+    If Not escPressed Then Exit Sub
     g_esc_consumed = False
     If CloseTopmostOnEsc() Then
         g_esc_consumed = True

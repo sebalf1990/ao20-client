@@ -73,7 +73,7 @@ Private g_agi_text          As String
 Private g_agi_value         As Long
 Private g_agi_width         As Long
 ' E6: hora del mundo (misma fuente que el HUD clasico: frmMain.lblhora) y oro, con texto y ancho en cache.
-Private g_time_src          As String
+Private g_time_dirty        As Boolean
 Private g_time_text         As String
 Private g_time_width        As Long
 Private g_gld_ready         As Boolean
@@ -81,6 +81,11 @@ Private g_gld_value         As Long
 Private g_gld_over_limit    As Boolean
 Private g_gld_text          As String
 Private g_gld_width         As Long
+
+' E6: ModMetereologia calls this when the world clock text changes; the HUD rebuilds its cached text on the next frame.
+Public Sub FullscreenHud_MarkTimeDirty()
+    g_time_dirty = True
+End Sub
 
 Public Sub Set_FullscreenHudActive(ByVal active As Boolean)
     g_fullscreen_hud_active = active
@@ -466,11 +471,9 @@ Private Sub Render_HudTopRight()
 
     ' E6: hora del mundo y oro bajo Agilidad (mismo estilo/alineacion). El oro usa el color del HUD clasico:
     ' amarillo normal, rojo si supera el limite por nivel.
-    Dim timeCaption As String
-    timeCaption = frmMain.lblhora.Caption
-    If LenB(g_time_text) = 0 Or timeCaption <> g_time_src Then
-        g_time_src = timeCaption
-        g_time_text = "Hora: " & timeCaption
+    If LenB(g_time_text) = 0 Or g_time_dirty Then
+        g_time_dirty = False
+        g_time_text = "Hora: " & frmMain.lblhora.Caption
         g_time_width = HudTextWidth(g_time_text)
     End If
     Call RenderHudTextLine(g_time_text, FULL_MINIMAP_X + MINIMAP_W - g_time_width, statsY + 32, 255, 255, 255)
