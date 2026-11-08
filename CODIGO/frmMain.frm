@@ -3015,6 +3015,7 @@ End Sub
 
 Public Sub ActivarMacroTrabajo()
     On Error GoTo ActivarMacroTrabajo_Err
+    If Not g_cursorTileInMap Then Exit Sub
     TargetXMacro = tX
     TargetYMacro = tY
     macrotrabajo.Interval = gIntervals.BuildWork
@@ -3117,6 +3118,7 @@ End Sub
 
 Private Sub mnuNPCComerciar_Click()
     On Error GoTo mnuNPCComerciar_Click_Err
+    If Not g_cursorTileInMap Then Exit Sub
     Call WriteLeftClick(tX, tY)
     Call WriteCommerceStart
     Exit Sub
@@ -3127,6 +3129,7 @@ End Sub
 
 Private Sub mnuNpcDesc_Click()
     On Error GoTo mnuNpcDesc_Click_Err
+    If Not g_cursorTileInMap Then Exit Sub
     Call WriteLeftClick(tX, tY)
     Exit Sub
 mnuNpcDesc_Click_Err:
@@ -3866,6 +3869,7 @@ End Sub
 
 Private Sub Form_DblClick()
     On Error GoTo Form_DblClick_Err
+    If Not g_cursorTileInMap Then Exit Sub
     'Chequea que la ventana de comercio y boveda no este abierta al hacer doble clic a un comerciante, sobrecarga la lista de items.
     If Not frmComerciar.visible And Not frmBancoObj.visible Then
         If MouseBoton = vbLeftButton Then
