@@ -488,7 +488,6 @@ End Sub
 Private Sub Form_Load()
     Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     On Error GoTo Form_Load_Err
-    Call Aplicar_Transparencia(Me.hWnd, ModMenuTransparency.g_menu_alpha)
     Call FormParser.Parse_Form(Me)
     'Carga las imagenes...?
     lblEstadoResp.visible = False

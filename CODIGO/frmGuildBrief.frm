@@ -248,7 +248,6 @@ Private Sub Form_Load()
     On Error GoTo Form_Load_Err
     Call FormParser.Parse_Form(Me)
     Me.Picture = LoadInterface("ventanaclanes_detalles.bmp")
-    Call Aplicar_Transparencia(Me.hWnd, ModMenuTransparency.g_menu_alpha)
     Call loadButtons
     Exit Sub
 Form_Load_Err:

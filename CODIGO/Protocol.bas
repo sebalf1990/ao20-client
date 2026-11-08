@@ -681,8 +681,11 @@ Private Sub HandleMacroTrabajoToggle()
         UserMacro.Activado = True
         UserMacro.cantidad = 999
         UserMacro.TIPO = 6
-        TargetXMacro = tX
-        TargetYMacro = tY
+        ' E5: sin tile valido bajo el cursor no se pisa el objetivo del macro.
+        If g_cursorTileInMap Then
+            TargetXMacro = tX
+            TargetYMacro = tY
+        End If
     End If
     Exit Sub
 HandleMacroTrabajoToggle_Err:

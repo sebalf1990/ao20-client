@@ -12,7 +12,6 @@ Option Explicit
 Private Const CELL_SIZE       As Long = 32
 Private Const CELL_STEP       As Long = 38
 Private Const PANEL_MAX_W     As Long = 500
-Private Const PANEL_Y         As Long = 70
 Private Const PANEL_PAD       As Long = 4
 Private Const TEXT_OFFSET_Y   As Long = 24
 
@@ -44,8 +43,9 @@ Public Sub Render_FullscreenBuffsPanel()
     Call UpdateEffectTime(DeBuffList, CurrTime)
     Call UpdateEffectTime(CDList, CurrTime)
 
+    ' E5: solo cuentan los efectos con icono (Grh > 0); antes un Grh vacio dejaba un hueco en la fila.
     Dim totalCount As Long
-    totalCount = BuffList.EffectCount + DeBuffList.EffectCount + CDList.EffectCount
+    totalCount = CountDrawableEffects(BuffList) + CountDrawableEffects(DeBuffList) + CountDrawableEffects(CDList)
     If totalCount <= 0 Then Exit Sub
 
     Dim maxCells As Long
@@ -57,9 +57,8 @@ Public Sub Render_FullscreenBuffsPanel()
     panelW = totalCount * CELL_STEP - (CELL_STEP - CELL_SIZE) + PANEL_PAD * 2
 
     ' V9.4: panel a la izquierda del minimapa, crece hacia la izquierda
-    Const MINIMAP_LEFT_REF As Long = 884
     Dim startX As Long
-    startX = MINIMAP_LEFT_REF - panelW - 8
+    startX = FULL_MINIMAP_X - panelW - 8
     If startX < PANEL_PAD Then startX = PANEL_PAD
 
     ' V9: sin fondo, los iconos van sueltos sobre el viewport
@@ -73,23 +72,33 @@ Public Sub Render_FullscreenBuffsPanel()
     currentX = startX
     rendered = 0
 
-    Call RenderEffectList(BuffList, currentX, PANEL_Y, CurrTime, colors, rendered, maxCells, False)
-    Call RenderEffectList(DeBuffList, currentX, PANEL_Y, CurrTime, colors, rendered, maxCells, False)
-    Call RenderEffectList(CDList, currentX, PANEL_Y, CurrTime, colors, rendered, maxCells, True)
+    Call RenderEffectList(BuffList, currentX, FULL_MINIMAP_Y, CurrTime, colors, rendered, maxCells, False)
+    Call RenderEffectList(DeBuffList, currentX, FULL_MINIMAP_Y, CurrTime, colors, rendered, maxCells, False)
+    Call RenderEffectList(CDList, currentX, FULL_MINIMAP_Y, CurrTime, colors, rendered, maxCells, True)
     Exit Sub
 Render_FullscreenBuffsPanel_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModFullscreenBuffsPanel.Render_FullscreenBuffsPanel", Erl)
     Resume Next
 End Sub
 
+Private Function CountDrawableEffects(ByRef EffectList As t_ActiveEffectList) As Long
+    Dim i As Integer
+    For i = 0 To EffectList.EffectCount - 1
+        If EffectList.EffectList(i).Grh > 0 Then CountDrawableEffects = CountDrawableEffects + 1
+    Next i
+End Function
+
 Private Sub RenderEffectList(ByRef EffectList As t_ActiveEffectList, ByRef currentX As Long, ByVal y As Long, ByVal CurrTime As Long, ByRef colors() As RGBA, ByRef rendered As Long, ByVal maxCells As Long, ByVal isCooldown As Boolean)
     On Error GoTo RenderEffectList_Err
     Dim i As Integer
     For i = 0 To EffectList.EffectCount - 1
         If rendered >= maxCells Then Exit Sub
-        Call DrawFullscreenEffect(currentX, y, EffectList.EffectList(i), CurrTime, colors, isCooldown)
-        currentX = currentX + CELL_STEP
-        rendered = rendered + 1
+        ' E5: un efecto sin icono no ocupa celda (ni avanza currentX).
+        If EffectList.EffectList(i).Grh > 0 Then
+            Call DrawFullscreenEffect(currentX, y, EffectList.EffectList(i), CurrTime, colors, isCooldown)
+            currentX = currentX + CELL_STEP
+            rendered = rendered + 1
+        End If
     Next i
     Exit Sub
 RenderEffectList_Err:

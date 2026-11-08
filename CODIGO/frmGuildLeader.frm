@@ -382,7 +382,6 @@ Private Sub Form_Load()
     Call FormParser.Parse_Form(Me)
     Me.Picture = LoadInterface("ventanaadminclan.bmp")
     EXPBAR.Picture = LoadInterface("barra-nivel-clan.bmp")
-    Call Aplicar_Transparencia(Me.hWnd, ModMenuTransparency.g_menu_alpha)
     Call loadButtons
     Exit Sub
 Form_Load_Err:

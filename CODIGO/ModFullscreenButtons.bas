@@ -17,6 +17,13 @@ Private Const PANEL_PAD   As Long = 2
 Private Const PANEL_W     As Long = PANEL_PAD * 2 + BUTTON_COLS * BUTTON_SIZE + (BUTTON_COLS - 1) * BUTTON_GAP
 Private Const PANEL_H     As Long = PANEL_PAD * 2 + BUTTON_ROWS * BUTTON_SIZE + (BUTTON_ROWS - 1) * BUTTON_GAP
 
+Private Type t_ButtonsPoint
+    x As Long
+    y As Long
+End Type
+Private Declare Function GetCursorPos Lib "user32" (lpPoint As t_ButtonsPoint) As Long
+Private Declare Function ScreenToClient Lib "user32" (ByVal hWnd As Long, lpPoint As t_ButtonsPoint) As Long
+
 ' Layout enum: indice del 0 al 14 mapea a posicion row*5+col
 Private Enum e_FullButtonId
     efbSafeParty = 0
@@ -168,6 +175,18 @@ Public Sub Handle_FullscreenButtonsMouseMove(ByVal x As Single, ByVal y As Singl
     End If
 End Sub
 
+' E5: el PictureBox no tiene MouseLeave. Se llama una vez por frame (engine.render): si hay un
+' boton resaltado y el cursor ya salio del panel, limpia el hover. Sin hover activo no hace nada.
+Public Sub Update_FullscreenButtonsHover()
+    On Error Resume Next
+    If Not g_buttons_active Then Exit Sub
+    If g_hovered_button = -1 Then Exit Sub
+    Dim pt As t_ButtonsPoint
+    If GetCursorPos(pt) = 0 Then Exit Sub
+    Call ScreenToClient(frmMain.picFullscreenButtons.hWnd, pt)
+    If pt.x < 0 Or pt.y < 0 Or pt.x >= PANEL_W Or pt.y >= PANEL_H Then Call Reset_FullscreenButtonsHover
+End Sub
+
 Public Sub Reset_FullscreenButtonsHover()
     On Error Resume Next
     If Not g_buttons_active Then Exit Sub
@@ -237,8 +256,12 @@ Private Sub ToggleKeysWindow()
         Call frmMain.CerrarLlavero
     Else
         FrmKeyInv.Show , frmMain
-        FrmKeyInv.Left = frmMain.Left + 890 * screen.TwipsPerPixelX - FrmKeyInv.Width \ 2
-        FrmKeyInv.Top = frmMain.Top + 555 * screen.TwipsPerPixelY - FrmKeyInv.Height
+        ' E5: la ventana del llavero se ancla al boton del llavero (centrada encima), no a 890/555 fijos.
+        Dim keysCenterX As Long, keysTopY As Long
+        keysCenterX = frmMain.picFullscreenButtons.Left + ButtonX(efbKeys) + BUTTON_SIZE \ 2
+        keysTopY = frmMain.picFullscreenButtons.Top + ButtonY(efbKeys)
+        FrmKeyInv.Left = frmMain.Left + keysCenterX * screen.TwipsPerPixelX - FrmKeyInv.Width \ 2
+        FrmKeyInv.Top = frmMain.Top + keysTopY * screen.TwipsPerPixelY - FrmKeyInv.Height
         frmMain.cmdLlavero.Tag = "2"
     End If
     Exit Sub
@@ -250,8 +273,8 @@ End Sub
 Private Function HitTestButton(ByVal x As Long, ByVal y As Long) As Long
     Dim i As Long
     For i = 0 To efbCount - 1
-        If x >= ButtonX(i) And x <= ButtonX(i) + BUTTON_SIZE Then
-            If y >= ButtonY(i) And y <= ButtonY(i) + BUTTON_SIZE Then
+        If x >= ButtonX(i) And x < ButtonX(i) + BUTTON_SIZE Then
+            If y >= ButtonY(i) And y < ButtonY(i) + BUTTON_SIZE Then
                 HitTestButton = i
                 Exit Function
             End If

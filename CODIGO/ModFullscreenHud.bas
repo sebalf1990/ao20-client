@@ -3,16 +3,14 @@ Attribute VB_Name = "ModFullscreenHud"
 '
 '    Render DX del HUD vital en modo viewport fullscreen.
 '    V9.6: consola wrap por pixeles y minimapa con posicion.
-'    Top-right: mapa y coords centrados con truncado por ancho, minimap con contorno,
-'    hora centrada, fuerza/agilidad alineadas a derecha.
+'    Top-right: nombre del mapa y coords alineados a la derecha del minimapa (con truncado por ancho),
+'    minimap con contorno, fuerza/agilidad alineadas a derecha. No dibuja hora ni oro.
 '
 '    Plan: ia/archivo/plans/2026/2026-05-21-viewport-fullscreen-hud-flotante.md (Etapa 9)
 '
 Option Explicit
 
 ' === Constantes ===
-Private Const GMBAR_HEIGHT     As Long = 22
-
 ' Top-left HUD
 Private Const HUD_LEFT_X       As Long = 10
 Private Const HUD_LEFT_Y       As Long = 28
@@ -31,9 +29,7 @@ Private Const EXP_BAR_W        As Long = 80
 Private Const EXP_BAR_H        As Long = 6
 Private Const STAT_BAR_H       As Long = 12
 
-' Top-right HUD
-Private Const MINIMAP_X        As Long = 884
-Private Const MINIMAP_Y        As Long = 70
+' Top-right HUD (ancla FULL_MINIMAP_X/Y en ModFullscreenLayout)
 Private Const MINIMAP_W        As Long = 100
 Private Const MINIMAP_H        As Long = 100
 Private Const MAPLABEL_Y       As Long = 40
@@ -370,7 +366,6 @@ End Function
 Private Sub RenderHudTextLine(ByVal text As String, _
                               ByVal x As Long, _
                               ByVal y As Long, _
-                              ByVal width As Long, _
                               ByVal red As Byte, _
                               ByVal green As Byte, _
                               ByVal blue As Byte)
@@ -424,7 +419,7 @@ Private Sub Render_HudTopRight()
         g_map_width = HudTextWidth(g_map_fit)
         g_map_ready = True
     End If
-    Call RenderHudTextLine(g_map_fit, MINIMAP_X + MINIMAP_W - g_map_width, MAPLABEL_Y, MAPLABEL_MAX_W, 255, 255, 255)
+    Call RenderHudTextLine(g_map_fit, FULL_MINIMAP_X + MINIMAP_W - g_map_width, MAPLABEL_Y, 255, 255, 255)
 
     If Not g_pos_ready Or UserPos.x <> g_pos_x Or UserPos.y <> g_pos_y Then
         g_pos_x = UserPos.x
@@ -433,32 +428,32 @@ Private Sub Render_HudTopRight()
         g_pos_width = HudTextWidth(g_pos_text)
         g_pos_ready = True
     End If
-    Call RenderHudTextLine(g_pos_text, MINIMAP_X + MINIMAP_W - g_pos_width, MAPLABEL_Y + 14, 60, 255, 255, 255)
+    Call RenderHudTextLine(g_pos_text, FULL_MINIMAP_X + MINIMAP_W - g_pos_width, MAPLABEL_Y + 14, 255, 255, 255)
     ' Contorno del minimapa (2px de grosor)
     Dim borderColor As RGBA
     borderColor = RGBA_From_Comp(200, 170, 90, 240)
-    Call Engine_Draw_Box(MINIMAP_X - 2, MINIMAP_Y - 2, MINIMAP_W + 4, 2, borderColor)
-    Call Engine_Draw_Box(MINIMAP_X - 2, MINIMAP_Y + MINIMAP_H, MINIMAP_W + 4, 2, borderColor)
-    Call Engine_Draw_Box(MINIMAP_X - 2, MINIMAP_Y - 2, 2, MINIMAP_H + 4, borderColor)
-    Call Engine_Draw_Box(MINIMAP_X + MINIMAP_W, MINIMAP_Y - 2, 2, MINIMAP_H + 4, borderColor)
+    Call Engine_Draw_Box(FULL_MINIMAP_X - 2, FULL_MINIMAP_Y - 2, MINIMAP_W + 4, 2, borderColor)
+    Call Engine_Draw_Box(FULL_MINIMAP_X - 2, FULL_MINIMAP_Y + MINIMAP_H, MINIMAP_W + 4, 2, borderColor)
+    Call Engine_Draw_Box(FULL_MINIMAP_X - 2, FULL_MINIMAP_Y - 2, 2, MINIMAP_H + 4, borderColor)
+    Call Engine_Draw_Box(FULL_MINIMAP_X + MINIMAP_W, FULL_MINIMAP_Y - 2, 2, MINIMAP_H + 4, borderColor)
 
     ' Fuerza y Agilidad alineadas a la derecha bajo el minimapa
     Dim statsY As Long
-    statsY = MINIMAP_Y + MINIMAP_H + 10
+    statsY = FULL_MINIMAP_Y + MINIMAP_H + 10
 
     If LenB(g_str_text) = 0 Or g_str_value <> UserStats.str Then
         g_str_value = UserStats.str
         g_str_text = "Fuerza: " & g_str_value
         g_str_width = HudTextWidth(g_str_text)
     End If
-    Call RenderHudTextLine(g_str_text, MINIMAP_X + MINIMAP_W - g_str_width, statsY, 120, 255, 255, 255)
+    Call RenderHudTextLine(g_str_text, FULL_MINIMAP_X + MINIMAP_W - g_str_width, statsY, 255, 255, 255)
 
     If LenB(g_agi_text) = 0 Or g_agi_value <> UserStats.Agi Then
         g_agi_value = UserStats.Agi
         g_agi_text = "Agilidad: " & g_agi_value
         g_agi_width = HudTextWidth(g_agi_text)
     End If
-    Call RenderHudTextLine(g_agi_text, MINIMAP_X + MINIMAP_W - g_agi_width, statsY + 16, 120, 255, 255, 255)
+    Call RenderHudTextLine(g_agi_text, FULL_MINIMAP_X + MINIMAP_W - g_agi_width, statsY + 16, 255, 255, 255)
     Exit Sub
 Render_HudTopRight_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModFullscreenHud.Render_HudTopRight", Erl)

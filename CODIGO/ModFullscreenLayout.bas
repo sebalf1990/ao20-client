@@ -24,6 +24,11 @@ Private Type t_FullscreenSlot
     origVisible As Boolean
 End Type
 
+' E5: unica fuente del ancla del minimapa en FULL (esquina superior izquierda, px del renderer).
+' La usan el HUD (etiquetas y contorno), el panel de buffs y este layout.
+Public Const FULL_MINIMAP_X As Long = 884
+Public Const FULL_MINIMAP_Y As Long = 70
+
 Private g_slots()       As t_FullscreenSlot
 Private g_slot_count    As Integer
 Private g_layout_inited As Boolean
@@ -47,7 +52,7 @@ Public Sub Init_FullscreenLayout()
     ' --- Etapa 1: solo PictureBoxes pueden moverse sobre el renderer ---
     ' VB6 Labels/Images son lightweight y NO se renderizan encima de un PictureBox
     ' grande (el renderer). NombrePJ/Coord/lblhora se reemplazaran en Etapa 2 via DX.
-    Call AddSlot("MiniMap", eFlaMove, 884, 70)
+    Call AddSlot("MiniMap", eFlaMove, FULL_MINIMAP_X, FULL_MINIMAP_Y)
     Call AddSlot("NombrePJ", eFlaHide)
     Call AddSlot("Coord", eFlaHide)
     Call AddSlot("lblhora", eFlaHide)

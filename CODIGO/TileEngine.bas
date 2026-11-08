@@ -443,6 +443,9 @@ Public CascoAnimData()        As HeadData
 '¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?
 '¿?¿?¿?¿?¿?¿?¿?¿?¿?¿Mapa?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?
 Public MapData()              As MapBlock ' Mapa
+' E5: True solo si el ultimo ConvertCPtoTP dejo el cursor sobre un tile del mapa actual (1..100).
+' tX/tY quedan clampeados para no romper MapData, pero las acciones del cursor deben chequear este flag.
+Public g_cursorTileInMap       As Boolean
 Public MapInfo                As MapInfo ' Info acerca del mapa en uso
 Public Zonas()                As MapZone
 '¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?¿?
@@ -602,13 +605,21 @@ End Sub
 
 Sub ConvertCPtoTP(ByVal viewPortX As Integer, ByVal viewPortY As Integer, ByRef tX As Byte, ByRef tY As Byte)
     On Error GoTo ConvertCPtoTP_Err
+    g_cursorTileInMap = False
     Dim ltx As Long: Dim lty As Long
     If viewPortX < g_viewport_logical_left Or viewPortX > g_viewport_logical_left + g_viewport_logical_width Then Exit Sub
     If viewPortY < g_viewport_logical_top Or viewPortY > g_viewport_logical_top + g_viewport_logical_height Then Exit Sub
     ltx = UserPos.x + (viewPortX - g_viewport_logical_left) \ 32 - g_viewport_logical_width \ 64
     lty = UserPos.y + (viewPortY - g_viewport_logical_top) \ 32 - g_viewport_logical_height \ 64
-    tX = max(0, ltx)
-    tY = max(0, lty)
+    g_cursorTileInMap = (ltx >= XMinMapSize And ltx <= XMaxMapSize And lty >= YMinMapSize And lty <= YMaxMapSize)
+    ' E5: clamp al rango del mapa (1..100). Antes tX/tY (Byte) tiraban error 6 por encima de 255 y los
+    ' callers indexan MapData(tX, tY), que solo existe en 1..100 (sobre todo con vecinos visibles en FULL).
+    If ltx < XMinMapSize Then ltx = XMinMapSize
+    If ltx > XMaxMapSize Then ltx = XMaxMapSize
+    If lty < YMinMapSize Then lty = YMinMapSize
+    If lty > YMaxMapSize Then lty = YMaxMapSize
+    tX = CByte(ltx)
+    tY = CByte(lty)
     Exit Sub
 ConvertCPtoTP_Err:
     Call RegistrarError(Err.Number, Err.Description, "TileEngine.ConvertCPtoTP", Erl)

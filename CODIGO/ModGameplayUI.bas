@@ -136,8 +136,10 @@ Public Sub OnClick(ByVal MouseButton As Long, ByVal MouseShift As Long)
         Case Else
             Exit Sub
     End Select
+    ' E5: clic fuera del mapa actual (zona de vecinos en FULL): no se envia nada. El ataque no usa tile.
+    If Not g_cursorTileInMap And MouseAction <> e_MouseAction.eAttack Then Exit Sub
     ' Hook PoC viewport: registrar click para marker visual del overlay debug.
-    If tX > 0 And tY > 0 Then Call ViewportDebug_OnClick(tX, tY)
+    If g_cursorTileInMap Then Call ViewportDebug_OnClick(tX, tY)
 #If DEBUGGING = 1 Then
     If EsGM And IsSet(FeatureToggles, eShowGmDebugData) Then
         Call CaptureDebugClickInfo(tX, tY)
@@ -608,6 +610,8 @@ Public Sub HandleKeyUp(KeyCode As Integer, Shift As Integer)
             ElseIf KeyCode = 80 And PescandoEspecial Then
                 Call IntentarObtenerPezEspecial
             ElseIf KeyCode = vbKeyF1 Then
+                ' E5: F1 es tambien la tecla por defecto del bind eHKey11 (hotkey 11). Accionar la consume antes,
+                ' asi que este atajo GM (/SM + /IRA) solo corre si eHKey11 se reasigna o queda en 0.
                 Call ParseUserCommand("/SM")
                 Call ParseUserCommand("/IRA " & targetName)
             End If
@@ -839,9 +843,10 @@ Public Sub ShowInteractionMenu(ByVal FormTop As Long, _
                                 ByVal y As Integer, _
                                 ByRef GameplayArea As RECT)
     On Error GoTo ShowInteractionMenu_Err
+    If Not g_cursorTileInMap Then Exit Sub
     Dim charindex As Integer
     charindex = MapData(tX, tY).charindex
-    If charindex = 0 Then charindex = MapData(tX, tY + 1).charindex
+    If charindex = 0 And tY < YMaxMapSize Then charindex = MapData(tX, tY + 1).charindex
     If charindex = 0 Or charindex = UserCharIndex Then Exit Sub
 
     Dim Frm As Form
