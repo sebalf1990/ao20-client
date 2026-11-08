@@ -86,6 +86,17 @@ Private Const BTN_W           As Long = 38
 Private Const BTN_H           As Long = 16
 Private Const BTN_PAD_X       As Long = 4
 
+' E6: "new messages" indicator shown while the console is scrolled up and lines arrive.
+Private Const UNREAD_TEXT     As String = "v Nuevos mensajes"
+Private Const UNREAD_PAD_X    As Long = 8
+Private Const UNREAD_H        As Long = 18
+Private Const UNREAD_TEXT_Y   As Long = 3
+Private Const UNREAD_BOTTOM   As Long = 4
+Private Const CONSOLE_SCROLLBAR_W As Long = 12
+Private g_new_msgs_pending    As Boolean
+Private g_console_unread      As Boolean
+Private g_unread_width        As Long
+
 ' Log a archivo: rotacion simple (plan 2026-11-07-fullscreen-pulido-y-vecinos E1).
 Private Const LOG_MAX_BYTES   As Long = 1048576
 Private g_log_disabled        As Boolean
@@ -119,6 +130,8 @@ End Sub
 Public Sub ViewportDebug_SetViewportMode(ByVal IsFullscreen As Boolean)
     g_viewport_full = IsFullscreen
     g_console_scroll_lines = 0
+    g_console_unread = False
+    g_new_msgs_pending = False
     g_wrap_dirty = True
     If IsFullscreen Then
         Call ViewportDebug_EnableMouseWheel
@@ -208,7 +221,17 @@ Public Function ViewportDebug_HandleMouseDown(ByVal x As Long, ByVal y As Long, 
         ViewportDebug_HandleMouseDown = True
         Exit Function
     End If
-    If x >= consX + consW - 12 And x < consX + consW And y >= consY + 22 And y < consY + consH Then
+    If isClick And g_console_unread Then
+        Dim pillX As Long, pillY As Long, pillW As Long
+        Call GetUnreadPillRect(consX, consY, consW, consH, pillX, pillY, pillW)
+        If x >= pillX And x < pillX + pillW And y >= pillY And y < pillY + UNREAD_H Then
+            g_console_scroll_lines = 0
+            g_console_unread = False
+            ViewportDebug_HandleMouseDown = True
+            Exit Function
+        End If
+    End If
+    If x >= consX + consW - CONSOLE_SCROLLBAR_W And x < consX + consW And y >= consY + 22 And y < consY + consH Then
         Dim maxScroll As Long
         maxScroll = GetConsoleMaxScroll()
         If maxScroll > 0 Then
@@ -242,6 +265,29 @@ End Function
 Public Sub ViewportDebug_ScrollConsole(ByVal deltaLines As Long)
     g_console_scroll_lines = g_console_scroll_lines + deltaLines
     Call ClampConsoleScroll
+    If g_console_scroll_lines = 0 Then g_console_unread = False
+End Sub
+
+' E6: rectangle of the "new messages" pill (bottom center of the box, left of the scrollbar). Width is cached.
+Private Sub GetUnreadPillRect(ByVal consX As Long, ByVal consY As Long, ByVal consW As Long, ByVal consH As Long, _
+                              ByRef pillX As Long, ByRef pillY As Long, ByRef pillW As Long)
+    If g_unread_width = 0 Then g_unread_width = Engine_Text_Width(UNREAD_TEXT, False, 1) + UNREAD_PAD_X * 2
+    pillW = g_unread_width
+    pillX = consX + (consW - CONSOLE_SCROLLBAR_W - pillW) \ 2
+    pillY = consY + consH - UNREAD_H - UNREAD_BOTTOM
+End Sub
+
+Private Sub Render_ConsoleUnreadPill(ByVal consX As Long, ByVal consY As Long, ByVal consW As Long, ByVal consH As Long)
+    Dim pillX As Long, pillY As Long, pillW As Long
+    Call GetUnreadPillRect(consX, consY, consW, consH, pillX, pillY, pillW)
+    Dim pillBg As RGBA
+    Dim pillBorder As RGBA
+    Dim pillText(3) As RGBA
+    pillBg = RGBA_From_Comp(20, 20, 20, 235)
+    pillBorder = RGBA_From_Comp(200, 170, 90, 255)
+    Call RGBAList(pillText, 255, 230, 140, 255)
+    Call Engine_Draw_Box_Border(pillX, pillY, pillW, UNREAD_H, pillBg, pillBorder)
+    Call Engine_Text_Render(UNREAD_TEXT, pillX + UNREAD_PAD_X, pillY + UNREAD_TEXT_Y, pillText, 1, False)
 End Sub
 
 ' E5: cantidad de lineas que entran en la caja (misma cuenta que usa el dibujo).
@@ -458,6 +504,7 @@ Private Sub PushOneRingEntry(ByVal text As String, _
                               ByVal appendToPrevious As Boolean, _
                               ByVal category As Byte)
     On Error Resume Next
+    g_new_msgs_pending = True
     If appendToPrevious And g_ring_count > 0 Then
         Dim lastIndex As Integer
         lastIndex = (g_ring_head - 1 + RING_SIZE) Mod RING_SIZE
@@ -654,6 +701,7 @@ Public Sub Render_ViewportDebugOverlay()
 
         Dim skippedLines As Long
         Dim totalVisual As Long
+        Dim previousTotal As Long
         Call EnsureFiltersLoaded
         wrapWidth = consW - 24
         ' E3: el total de lineas visuales solo se recalcula si cambio el texto, el filtro o el ancho.
@@ -665,11 +713,22 @@ Public Sub Render_ViewportDebugOverlay()
                     totalVisual = totalVisual + g_ring(idx).wrapCount
                 End If
             Next i
+            previousTotal = g_console_total_visual
             g_console_total_visual = totalVisual
             g_wrap_total_width = wrapWidth
             g_wrap_dirty = False
+            ' E6: scroll counts from the newest line, so when lines arrive while scrolled up the offset grows by the
+            ' same amount to keep the same text on screen, and the indicator is raised. At the bottom nothing changes.
+            If g_new_msgs_pending Then
+                If g_console_scroll_lines > 0 And totalVisual > previousTotal Then
+                    g_console_scroll_lines = g_console_scroll_lines + (totalVisual - previousTotal)
+                    g_console_unread = True
+                End If
+                g_new_msgs_pending = False
+            End If
         End If
         Call ClampConsoleScroll
+        If g_console_scroll_lines = 0 Then g_console_unread = False
 
         For i = 0 To g_ring_count - 1
             idx = (g_ring_head - 1 - i + RING_SIZE) Mod RING_SIZE
@@ -715,6 +774,7 @@ NextEntry:
             scrollThumb = RGBA_From_Comp(235, 235, 235, 220)
             Call Engine_Draw_Box(trackX - 1, thumbY, 8, thumbH, scrollThumb)
         End If
+        If g_console_unread Then Call Render_ConsoleUnreadPill(consX, consY, consW, consH)
     End If
 
     Exit Sub
