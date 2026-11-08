@@ -17,6 +17,15 @@ Private Const CORNER_NW As Integer = 2
 Private Const CORNER_SE As Integer = 3
 Private Const CORNER_SW As Integer = 4
 
+' E4e (D3): borde con niebla donde no hay vecino (interiores, dungeons, costa sin mapa). Afuera del
+' mapa se pinta niebla opaca y sobre los ultimos pixeles del mapa FOG_BANDS franjas que se aclaran.
+Private Const FOG_BANDS As Integer = 6
+Private Const FOG_BAND_PIXELS As Long = 8
+Private Const FOG_EDGE_ALPHA As Long = 170
+Private Const FOG_RED As Byte = 12
+Private Const FOG_GREEN As Byte = 14
+Private Const FOG_BLUE As Byte = 18
+
 Private Const MAP_MAX_TILES As Integer = 100
 Private Const NEIGHBOR_MIN_TE_COUNT As Integer = 60
 Private Const MAX_MAP_ID_GUESS As Integer = 1200
@@ -186,6 +195,11 @@ Private g_corner_map(1 To 4) As Integer
 Private g_corner_slot(1 To 4) As Integer
 Private g_corner_offset_x(1 To 4) As Integer
 Private g_corner_offset_y(1 To 4) As Integer
+' Rectangulo visible (pixeles de pantalla) del frame en curso, para recortar la niebla.
+Private g_fog_view_left As Long
+Private g_fog_view_right As Long
+Private g_fog_view_top As Long
+Private g_fog_view_bottom As Long
 
 ' Cambio de mapa (SwitchMap en FULL): engancha lo que ya esta en cache y carga de una los que faltan.
 Public Sub ViewportNeighbor_PrepareForMap(ByVal ResourceMap As Integer)
@@ -385,11 +399,105 @@ Public Sub ViewportNeighbor_RenderLayer(ByVal Layer As Integer, _
             End If
         Next virtualX
     Next virtualY
+    ' E4e: la niebla va sobre la ultima capa (techos), dentro de la pieza de perf de vecinos.
+    If Layer = 4 Then Call ViewportNeighbor_RenderFog(RawMinX, RawMaxX, RawMinY, RawMaxY, BaseScreenX, BaseScreenY)
     Call Perf_FrameAdd(PERF_PIECE_NEIGHBORS, perfT)
 
     Exit Sub
 ViewportNeighbor_RenderLayer_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_RenderLayer", Erl)
+End Sub
+
+Private Sub ViewportNeighbor_RenderFog(ByVal RawMinX As Integer, _
+                                      ByVal RawMaxX As Integer, _
+                                      ByVal RawMinY As Integer, _
+                                      ByVal RawMaxY As Integer, _
+                                      ByVal BaseScreenX As Integer, _
+                                      ByVal BaseScreenY As Integer)
+    On Error GoTo ViewportNeighbor_RenderFog_Err
+
+    Dim mapLeft    As Long
+    Dim mapRight   As Long
+    Dim mapTop     As Long
+    Dim mapBottom  As Long
+    Dim spanLeft   As Long
+    Dim spanRight  As Long
+    Dim spanTop    As Long
+    Dim spanBottom As Long
+    Dim band       As Long
+    Dim bandAlpha  As Long
+
+    g_fog_view_left = CLng(BaseScreenX) + CLng(RawMinX) * TilePixelWidth
+    g_fog_view_right = CLng(BaseScreenX) + CLng(RawMaxX + 1) * TilePixelWidth
+    g_fog_view_top = CLng(BaseScreenY) + CLng(RawMinY) * TilePixelHeight
+    g_fog_view_bottom = CLng(BaseScreenY) + CLng(RawMaxY + 1) * TilePixelHeight
+    mapLeft = CLng(BaseScreenX) + CLng(XMinMapSize) * TilePixelWidth
+    mapRight = CLng(BaseScreenX) + CLng(XMaxMapSize + 1) * TilePixelWidth
+    mapTop = CLng(BaseScreenY) + CLng(YMinMapSize) * TilePixelHeight
+    mapBottom = CLng(BaseScreenY) + CLng(YMaxMapSize + 1) * TilePixelHeight
+
+    ' Caso comun (jugador lejos de todo borde): el mapa cubre toda la vista, nada que dibujar.
+    If g_fog_view_left >= mapLeft + FOG_BANDS * FOG_BAND_PIXELS And g_fog_view_right <= mapRight - FOG_BANDS * FOG_BAND_PIXELS And _
+       g_fog_view_top >= mapTop + FOG_BANDS * FOG_BAND_PIXELS And g_fog_view_bottom <= mapBottom - FOG_BANDS * FOG_BAND_PIXELS Then Exit Sub
+
+    spanLeft = mapLeft
+    If g_fog_view_left > spanLeft Then spanLeft = g_fog_view_left
+    spanRight = mapRight
+    If g_fog_view_right < spanRight Then spanRight = g_fog_view_right
+    spanTop = mapTop
+    If g_fog_view_top > spanTop Then spanTop = g_fog_view_top
+    spanBottom = mapBottom
+    If g_fog_view_bottom < spanBottom Then spanBottom = g_fog_view_bottom
+
+    If Not g_neighbor_loaded(DIR_WEST) Then
+        Call ViewportNeighbor_FogBox(g_fog_view_left, spanTop, mapLeft, spanBottom, 255)
+        For band = 0 To FOG_BANDS - 1
+            bandAlpha = FOG_EDGE_ALPHA * (FOG_BANDS - band) \ FOG_BANDS
+            Call ViewportNeighbor_FogBox(mapLeft + band * FOG_BAND_PIXELS, spanTop, mapLeft + (band + 1) * FOG_BAND_PIXELS, spanBottom, bandAlpha)
+        Next band
+    End If
+    If Not g_neighbor_loaded(DIR_EAST) Then
+        Call ViewportNeighbor_FogBox(mapRight, spanTop, g_fog_view_right, spanBottom, 255)
+        For band = 0 To FOG_BANDS - 1
+            bandAlpha = FOG_EDGE_ALPHA * (FOG_BANDS - band) \ FOG_BANDS
+            Call ViewportNeighbor_FogBox(mapRight - (band + 1) * FOG_BAND_PIXELS, spanTop, mapRight - band * FOG_BAND_PIXELS, spanBottom, bandAlpha)
+        Next band
+    End If
+    If Not g_neighbor_loaded(DIR_NORTH) Then
+        Call ViewportNeighbor_FogBox(spanLeft, g_fog_view_top, spanRight, mapTop, 255)
+        For band = 0 To FOG_BANDS - 1
+            bandAlpha = FOG_EDGE_ALPHA * (FOG_BANDS - band) \ FOG_BANDS
+            Call ViewportNeighbor_FogBox(spanLeft, mapTop + band * FOG_BAND_PIXELS, spanRight, mapTop + (band + 1) * FOG_BAND_PIXELS, bandAlpha)
+        Next band
+    End If
+    If Not g_neighbor_loaded(DIR_SOUTH) Then
+        Call ViewportNeighbor_FogBox(spanLeft, mapBottom, spanRight, g_fog_view_bottom, 255)
+        For band = 0 To FOG_BANDS - 1
+            bandAlpha = FOG_EDGE_ALPHA * (FOG_BANDS - band) \ FOG_BANDS
+            Call ViewportNeighbor_FogBox(spanLeft, mapBottom - (band + 1) * FOG_BAND_PIXELS, spanRight, mapBottom - band * FOG_BAND_PIXELS, bandAlpha)
+        Next band
+    End If
+
+    ' Esquinas sin mapa: niebla opaca en vez de negro.
+    If g_corner_slot(CORNER_NW) = 0 Then Call ViewportNeighbor_FogBox(g_fog_view_left, g_fog_view_top, mapLeft, mapTop, 255)
+    If g_corner_slot(CORNER_NE) = 0 Then Call ViewportNeighbor_FogBox(mapRight, g_fog_view_top, g_fog_view_right, mapTop, 255)
+    If g_corner_slot(CORNER_SW) = 0 Then Call ViewportNeighbor_FogBox(g_fog_view_left, mapBottom, mapLeft, g_fog_view_bottom, 255)
+    If g_corner_slot(CORNER_SE) = 0 Then Call ViewportNeighbor_FogBox(mapRight, mapBottom, g_fog_view_right, g_fog_view_bottom, 255)
+    Exit Sub
+ViewportNeighbor_RenderFog_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_RenderFog", Erl)
+End Sub
+
+' Caja de niebla (x1,y1)-(x2,y2) recortada al rectangulo visible; no dibuja si queda vacia.
+Private Sub ViewportNeighbor_FogBox(ByVal x1 As Long, ByVal y1 As Long, ByVal x2 As Long, ByVal y2 As Long, ByVal alpha As Long)
+    If x1 < g_fog_view_left Then x1 = g_fog_view_left
+    If y1 < g_fog_view_top Then y1 = g_fog_view_top
+    If x2 > g_fog_view_right Then x2 = g_fog_view_right
+    If y2 > g_fog_view_bottom Then y2 = g_fog_view_bottom
+    If x2 <= x1 Or y2 <= y1 Then Exit Sub
+    If alpha < 1 Then Exit Sub
+    If alpha > 255 Then alpha = 255
+    Call Engine_Draw_Box(CInt(x1), CInt(y1), CInt(x2 - x1), CInt(y2 - y1), RGBA_From_Comp(FOG_RED, FOG_GREEN, FOG_BLUE, CByte(alpha)))
 End Sub
 
 ' E4c: solo se resetea el plan por direccion; la cache de bloques se conserva (antes: Erase de ~7 MB
