@@ -186,6 +186,7 @@ Private g_job_ok As Boolean
 Private g_job_reason As String
 Private g_failed_maps(1 To MAX_FAILED_MAPS) As Integer
 Private g_failed_count As Integer
+Private g_failed_next As Integer
 Private g_deferred_count As Integer
 Private g_prepare_ms As Double
 Private g_qpc_freq As Double
@@ -234,6 +235,17 @@ ViewportNeighbor_BeforeMapLoad_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_BeforeMapLoad", Erl)
 End Sub
 
+' E4d: desconexion, logout o cierre del cliente: corta la precarga en curso (cierra el archivo y, con
+' Compresion=1, borra su temporal).
+Public Sub ViewportNeighbor_Shutdown()
+    On Error GoTo ViewportNeighbor_Shutdown_Err
+
+    If g_job_phase <> JOB_IDLE Then Call ViewportNeighbor_JobAbort("shutdown")
+    Exit Sub
+ViewportNeighbor_Shutdown_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_Shutdown", Erl)
+End Sub
+
 ' E4d: una vez por vuelta del bucle principal (engine.start, en juego). Solo en FULL. Avanza la carga
 ' en curso dentro del presupuesto del frame o elige la proxima precarga.
 Public Sub ViewportNeighbor_IdleTick()
@@ -278,9 +290,14 @@ Private Sub ViewportNeighbor_Prepare(ByVal ResourceMap As Integer, ByVal deferMi
     Dim summary As String
     Dim scanText As String
 
+    ' Una carga abierta sobre este mismo mapa se corta antes de que ReleaseMapFile borre su temporal.
+    If g_job_phase <> JOB_IDLE Then
+        If g_job_map = ResourceMap Then Call ViewportNeighbor_JobAbort("same map")
+    End If
     Call ViewportNeighbor_ResetDirections
     g_cached_resource_map = ResourceMap
     g_failed_count = 0
+    g_failed_next = 0
     g_deferred_count = 0
     g_near_mask = -1
     g_prepare_ms = ViewportNeighbor_Now()
@@ -339,6 +356,8 @@ Private Sub ViewportNeighbor_Prepare(ByVal ResourceMap As Integer, ByVal deferMi
                 Call ViewportNeighbor_Attach(direction, slot)
             ElseIf deferMisses Then
                 g_deferred_count = g_deferred_count + 1
+            ElseIf Not ViewportNeighbor_MapFileExists(g_neighbor_map(direction)) Then
+                Call ViewportNeighbor_MarkFailed(g_neighbor_map(direction))
             Else
                 slot = ViewportNeighbor_AcquireSlot()
                 If slot > 0 Then
@@ -747,6 +766,10 @@ Private Function ViewportNeighbor_StartNextPrefetch() As Boolean
     Dim slot As Integer
 
     If Not ViewportNeighbor_PickCandidate(mapId, reason) Then Exit Function
+    If Not ViewportNeighbor_MapFileExists(mapId) Then
+        Call ViewportNeighbor_MarkFailed(mapId)
+        Exit Function
+    End If
     slot = ViewportNeighbor_AcquireSlot()
     If slot = 0 Then Exit Function
     g_job_ticks = 0
@@ -1033,10 +1056,25 @@ End Sub
 
 Private Sub ViewportNeighbor_MarkFailed(ByVal mapId As Integer)
     If ViewportNeighbor_IsFailed(mapId) Then Exit Sub
-    If g_failed_count >= MAX_FAILED_MAPS Then Exit Sub
-    g_failed_count = g_failed_count + 1
-    g_failed_maps(g_failed_count) = mapId
+    If g_failed_count < MAX_FAILED_MAPS Then
+        g_failed_count = g_failed_count + 1
+        g_failed_maps(g_failed_count) = mapId
+    Else
+        ' Lista llena: se pisa la mas vieja (anillo), asi un mapa fallido nunca se reintenta por tick.
+        g_failed_next = (g_failed_next Mod MAX_FAILED_MAPS) + 1
+        g_failed_maps(g_failed_next) = mapId
+    End If
 End Sub
+
+' Antes de desalojar un slot valido: el .csm del mapa tiene que existir (con Compresion=1 lo extrae;
+' la carga que sigue lo usa y lo borra).
+Private Function ViewportNeighbor_MapFileExists(ByVal mapId As Integer) As Boolean
+    On Error GoTo ViewportNeighbor_MapFileExists_Err
+    ViewportNeighbor_MapFileExists = (LenB(Dir$(ViewportNeighbor_MapPath(mapId))) <> 0)
+    Exit Function
+ViewportNeighbor_MapFileExists_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_MapFileExists", Erl)
+End Function
 
 Private Function ViewportNeighbor_IsFailed(ByVal mapId As Integer) As Boolean
     Dim i As Integer

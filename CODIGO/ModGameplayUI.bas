@@ -967,6 +967,7 @@ End Sub
 Public Sub Restore_ClassicAfterDisconnect()
     On Error GoTo Restore_ClassicAfterDisconnect_Err
     Call ResetAllCd
+    Call ViewportNeighbor_Shutdown
     If g_renderer_state_saved Then
         Call ViewportDebug_AppendDiagLog("[Disconnect] FULL activo, vuelvo a HUD clasico")
         g_pending_restore_full = True

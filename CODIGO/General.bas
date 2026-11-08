@@ -1166,6 +1166,7 @@ Public Sub CloseClient()
     ' Allow new instances of the client to be opened
     On Error GoTo CloseClient_Err
     UserSaliendo = True
+    Call ViewportNeighbor_Shutdown
     Call SaveConfig
     Call GuardianPipeReset
     Call UnloadAntiCheat
