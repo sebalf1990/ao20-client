@@ -296,6 +296,36 @@ Private Function ParseLayoutCoord(ByVal rawValue As String, ByVal defaultValue A
     End If
 End Function
 
+' Posicion de los menus abiertos desde la botonera FULL (frmOpciones, FrmGrupo, etc.): se guarda en la misma
+' seccion [FloatingWindows] con claves <NombreForm>Left/<NombreForm>Top, en pixeles relativos a la esquina de
+' frmMain (el que llama convierte desde/hacia twips). Reusa el parseo validado de las ventanas flotantes.
+Public Sub FloatingWindows_SaveMenuPos(ByVal formName As String, ByVal leftPx As Long, ByVal topPx As Long)
+    On Error GoTo FloatingWindows_SaveMenuPos_Err
+    Call SaveSetting(LAYOUT_SECTION, formName & "Left", CStr(leftPx))
+    Call SaveSetting(LAYOUT_SECTION, formName & "Top", CStr(topPx))
+    Exit Sub
+FloatingWindows_SaveMenuPos_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModFloatingWindows.FloatingWindows_SaveMenuPos", Erl)
+    Resume Next
+End Sub
+
+' Devuelve False si el menu no tiene posicion guardada (o esta incompleta).
+Public Function FloatingWindows_LoadMenuPos(ByVal formName As String, ByRef leftPx As Long, ByRef topPx As Long) As Boolean
+    On Error GoTo FloatingWindows_LoadMenuPos_Err
+    Dim rawLeft As String
+    Dim rawTop As String
+    rawLeft = GetSetting(LAYOUT_SECTION, formName & "Left")
+    rawTop = GetSetting(LAYOUT_SECTION, formName & "Top")
+    If LenB(rawLeft) = 0 Or LenB(rawTop) = 0 Then Exit Function
+    leftPx = ParseLayoutCoord(rawLeft, 0)
+    topPx = ParseLayoutCoord(rawTop, 0)
+    FloatingWindows_LoadMenuPos = True
+    Exit Function
+FloatingWindows_LoadMenuPos_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModFloatingWindows.FloatingWindows_LoadMenuPos", Erl)
+    Resume Next
+End Function
+
 Private Sub SaveFloatingWindowState(ByVal windowId As e_FloatingWindowId)
     On Error GoTo SaveFloatingWindowState_Err
     Dim ctl As PictureBox
