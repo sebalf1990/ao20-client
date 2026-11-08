@@ -604,7 +604,8 @@ Public Sub HandleKeyUp(KeyCode As Integer, Shift As Integer)
             ElseIf KeyCode = vbKeyDelete Then
                 Call OpenAndFocusClanChat
             ElseIf KeyCode = vbKeyEscape And Not UserSaliendo Then
-                Call HandleEsc
+                ' E6: in FULL, Esc already closed a floating window/menu on key down; do not also open the exit prompt.
+                If Not FullscreenEsc_WasConsumed() Then Call HandleEsc
             ElseIf KeyCode = 27 And UserSaliendo Then
                 Call WriteCancelarExit
             ElseIf KeyCode = 80 And PescandoEspecial Then
