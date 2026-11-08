@@ -58,6 +58,7 @@ Sub SwitchMap(ByVal map As Integer, Optional ByVal NewResourceMap As Integer = 0
     Dim OldMapHadRain As Boolean: OldMapHadRain = (MapDat.LLUVIA = 1)
     Dim OldMapHadSnow As Boolean: OldMapHadSnow = (MapDat.NIEVE = 1)
     'Cargamos el mapa.
+    Call ViewportNeighbor_BeforeMapLoad(ResourceMap)
     perfT = Perf_Now()
     Call Recursos.CargarMapa(ResourceMap)
     perfCargar = Perf_Now() - perfT
