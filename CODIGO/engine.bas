@@ -2069,6 +2069,8 @@ Public Sub start()
                     #End If
                     Check_Keys
                     Moviendose = False
+                    ' E4d: precarga de mapas vecinos en rebanadas (solo FULL, presupuesto por frame).
+                    Call ViewportNeighbor_IdleTick
                     DrawMainInventory
                     If frmComerciar.visible Then
                         DrawInterfaceComerciar
