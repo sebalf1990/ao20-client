@@ -128,7 +128,6 @@ Private Sub Form_Load()
     On Error GoTo Form_Load_Error
     Call FormParser.Parse_Form(Me)
     ' Aplica transparencia al formulario (valor 240 de opacidad)
-    Call Aplicar_Transparencia(Me.hWnd, ModMenuTransparency.g_menu_alpha)
     ' Carga la imagen de fondo del formulario desde archivo
     frmSkins.Picture = LoadInterface("ventanaskins.bmp")
     Set cBotonEliminarItem = New clsGraphicalButton

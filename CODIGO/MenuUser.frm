@@ -181,7 +181,7 @@ Option Explicit
 Private Over As Integer
 
 Private Sub Form_Load()
-    Call Aplicar_Transparencia(Me.hWnd, ModMenuTransparency.g_menu_alpha)
+    Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     OpcionLbl(0).Caption = JsonLanguage.Item("FORM_OPCION_0")
     OpcionLbl(1).Caption = JsonLanguage.Item("FORM_OPCION_1")
     OpcionLbl(2).Caption = JsonLanguage.Item("FORM_OPCION_2")

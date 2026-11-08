@@ -545,7 +545,6 @@ Private Sub Form_Load()
     listdrop.BackColor = RGB(7, 7, 7)
     lblMapInfo(0).ForeColor = RGB(235, 164, 14)
     Call FormParser.Parse_Form(Me)
-    Call Aplicar_Transparencia(Me.hWnd, ModMenuTransparency.g_menu_alpha)
     cmdSearch.Picture = LoadInterface("boton-buscar-default.bmp")
     ' picMap.Picture = LoadInterface("mapa.bmp")
     Exit Sub

@@ -359,7 +359,6 @@ Private Sub Form_Load()
     Text1.BackColor = RGB(11, 11, 11)
     PlayerView.BackColor = RGB(11, 11, 11)
     picture1.BackColor = RGB(19, 14, 11)
-    Call Aplicar_Transparencia(Me.hWnd, ModMenuTransparency.g_menu_alpha)
     Exit Sub
 Form_Load_Err:
     Call RegistrarError(Err.Number, Err.Description, "FrmQuestInfo.Form_Load", Erl)
