@@ -11,6 +11,12 @@ Private Const DIR_SOUTH As Integer = 2
 Private Const DIR_WEST  As Integer = 3
 Private Const DIR_EAST  As Integer = 4
 
+' E4e (D3): esquinas diagonales.
+Private Const CORNER_NE As Integer = 1
+Private Const CORNER_NW As Integer = 2
+Private Const CORNER_SE As Integer = 3
+Private Const CORNER_SW As Integer = 4
+
 Private Const MAP_MAX_TILES As Integer = 100
 Private Const NEIGHBOR_MIN_TE_COUNT As Integer = 60
 Private Const MAX_MAP_ID_GUESS As Integer = 1200
@@ -174,6 +180,13 @@ Private g_deferred_count As Integer
 Private g_prepare_ms As Double
 Private g_qpc_freq As Double
 
+' E4e (D3): mapa de cada esquina (vecino del vecino: N.E o E.N, etc.) y su desplazamiento compuesto
+' (localX = virtualX + offX). g_corner_slot > 0 = cargado y dibujable.
+Private g_corner_map(1 To 4) As Integer
+Private g_corner_slot(1 To 4) As Integer
+Private g_corner_offset_x(1 To 4) As Integer
+Private g_corner_offset_y(1 To 4) As Integer
+
 ' Cambio de mapa (SwitchMap en FULL): engancha lo que ya esta en cache y carga de una los que faltan.
 Public Sub ViewportNeighbor_PrepareForMap(ByVal ResourceMap As Integer)
     Call ViewportNeighbor_Prepare(ResourceMap, False)
@@ -323,6 +336,7 @@ Private Sub ViewportNeighbor_Prepare(ByVal ResourceMap As Integer, ByVal deferMi
         End If
         summary = summary & " " & Mid$("NSWE", direction, 1) & "=" & g_neighbor_map(direction)
     Next direction
+    Call ViewportNeighbor_RefreshCorners
 
     Call ViewportDebug_AppendDiagLog("[NEIGH] map=" & ResourceMap & summary & " hits=" & hits & " loads=" & loads & " deferred=" & g_deferred_count & scanText)
     Exit Sub
@@ -391,6 +405,10 @@ Private Sub ViewportNeighbor_ResetDirections()
         g_neighbor_offset(direction) = 0
         g_neighbor_loaded(direction) = False
         g_neighbor_slot(direction) = 0
+        g_corner_map(direction) = 0
+        g_corner_slot(direction) = 0
+        g_corner_offset_x(direction) = 0
+        g_corner_offset_y(direction) = 0
     Next direction
 End Sub
 
@@ -472,6 +490,7 @@ Private Sub ViewportNeighbor_ForgetSlot(ByVal slot As Integer)
             g_neighbor_slot(direction) = 0
             g_neighbor_loaded(direction) = False
         End If
+        If g_corner_slot(direction) = slot Then g_corner_slot(direction) = 0
     Next direction
 End Sub
 
@@ -491,6 +510,7 @@ Private Sub ViewportNeighbor_UpdatePins()
     g_pin_gen = g_pin_gen + 1
     For direction = DIR_NORTH To DIR_EAST
         If g_neighbor_loaded(direction) Then Call ViewportNeighbor_Touch(g_neighbor_slot(direction))
+        If g_corner_slot(direction) > 0 Then Call ViewportNeighbor_Touch(g_corner_slot(direction))
     Next direction
 End Sub
 
@@ -549,12 +569,16 @@ Private Function ViewportNeighbor_PickCandidate(ByRef mapId As Integer, ByRef re
     Dim distance As Long
     Dim bestDistance As Long
     Dim candidate As Integer
+    Dim corner As Integer
+    Dim vDir As Integer
+    Dim hDir As Integer
 
     For direction = DIR_NORTH To DIR_EAST
         If g_neighbor_map(direction) > 0 And Not g_neighbor_loaded(direction) Then
             slot = ViewportNeighbor_FindSlot(g_neighbor_map(direction))
             If slot > 0 Then
                 Call ViewportNeighbor_Attach(direction, slot)
+                Call ViewportNeighbor_RefreshCorners
             ElseIf Not ViewportNeighbor_IsFailed(g_neighbor_map(direction)) Then
                 distance = ViewportNeighbor_DistanceToSide(direction)
                 If best = 0 Or distance < bestDistance Then
@@ -572,6 +596,21 @@ Private Function ViewportNeighbor_PickCandidate(ByRef mapId As Integer, ByRef re
     End If
 
     If ViewportNeighbor_Now() - g_prepare_ms < PREFETCH_SETTLE_MS Then Exit Function
+
+    ' E4e: esquina visible (jugador cerca de los dos lados): va antes que los vecinos lejanos.
+    For corner = CORNER_NE To CORNER_SW
+        If g_corner_map(corner) > 0 And g_corner_slot(corner) = 0 Then
+            Call ViewportNeighbor_CornerDirs(corner, vDir, hDir)
+            If ViewportNeighbor_DistanceToSide(vDir) <= PREFETCH_EDGE_TILES And ViewportNeighbor_DistanceToSide(hDir) <= PREFETCH_EDGE_TILES Then
+                If ViewportNeighbor_IsWantedMissing(g_corner_map(corner)) Then
+                    mapId = g_corner_map(corner)
+                    reason = "corner" & Mid$("NSWE", vDir, 1) & Mid$("NSWE", hDir, 1)
+                    ViewportNeighbor_PickCandidate = True
+                    Exit Function
+                End If
+            End If
+        End If
+    Next corner
 
     For direction = DIR_NORTH To DIR_EAST
         If g_neighbor_loaded(direction) Then
@@ -623,6 +662,7 @@ Private Sub ViewportNeighbor_JobFinished()
             Call ViewportNeighbor_Attach(direction, g_job_slot)
         End If
     Next direction
+    Call ViewportNeighbor_RefreshCorners
 End Sub
 
 ' Carga en curso al cambiar de mapa: se termina de una si el mapa nuevo la necesita, si no se corta.
@@ -1064,6 +1104,7 @@ Private Function ViewportNeighbor_MapVirtualTile(ByVal virtualX As Integer, _
                                                  ByRef localX As Integer, _
                                                  ByRef localY As Integer) As Boolean
     Dim direction As Integer
+    Dim corner As Integer
     Dim insideX As Boolean
     Dim insideY As Boolean
 
@@ -1091,7 +1132,23 @@ Private Function ViewportNeighbor_MapVirtualTile(ByVal virtualX As Integer, _
         localY = virtualY + g_neighbor_offset(direction)
         slot = g_neighbor_slot(direction)
     Else
-        Exit Function
+        ' E4e: esquina diagonal.
+        If virtualY < YMinMapSize Then
+            If virtualX > XMaxMapSize Then
+                corner = CORNER_NE
+            Else
+                corner = CORNER_NW
+            End If
+        Else
+            If virtualX > XMaxMapSize Then
+                corner = CORNER_SE
+            Else
+                corner = CORNER_SW
+            End If
+        End If
+        slot = g_corner_slot(corner)
+        localX = virtualX + g_corner_offset_x(corner)
+        localY = virtualY + g_corner_offset_y(corner)
     End If
 
     If slot < 1 Then Exit Function
@@ -1100,6 +1157,103 @@ Private Function ViewportNeighbor_MapVirtualTile(ByVal virtualX As Integer, _
 
     ViewportNeighbor_MapVirtualTile = True
 End Function
+
+Private Sub ViewportNeighbor_CornerDirs(ByVal corner As Integer, ByRef vDir As Integer, ByRef hDir As Integer)
+    Select Case corner
+        Case CORNER_NE
+            vDir = DIR_NORTH
+            hDir = DIR_EAST
+        Case CORNER_NW
+            vDir = DIR_NORTH
+            hDir = DIR_WEST
+        Case CORNER_SE
+            vDir = DIR_SOUTH
+            hDir = DIR_EAST
+        Case Else
+            vDir = DIR_SOUTH
+            hDir = DIR_WEST
+    End Select
+End Sub
+
+' Mapa de esquina yendo primero al vecino firstDir (cargado) y despues a su vecino secondDir, con el
+' desplazamiento compuesto de los dos cruces. 0 si ese camino no existe.
+Private Function ViewportNeighbor_CornerPath(ByVal firstDir As Integer, ByVal secondDir As Integer, ByRef offX As Integer, ByRef offY As Integer) As Integer
+    Dim slot As Integer
+    Dim mapId As Integer
+    Dim secondOffset As Integer
+
+    offX = 0
+    offY = 0
+    If Not g_neighbor_loaded(firstDir) Then Exit Function
+    slot = g_neighbor_slot(firstDir)
+    If slot < 1 Then Exit Function
+    mapId = g_slot_nb_map(slot, secondDir)
+    If mapId < 1 Or g_slot_nb_count(slot, secondDir) < NEIGHBOR_MIN_TE_COUNT Then Exit Function
+    If mapId = g_cached_resource_map Then Exit Function
+    secondOffset = g_slot_nb_dest(slot, secondDir) - g_slot_nb_source(slot, secondDir)
+    If firstDir = DIR_NORTH Or firstDir = DIR_SOUTH Then
+        offY = g_neighbor_offset(firstDir)
+        offX = secondOffset
+    Else
+        offX = g_neighbor_offset(firstDir)
+        offY = secondOffset
+    End If
+    ViewportNeighbor_CornerPath = mapId
+End Function
+
+' D3: la esquina es N.E o E.N (etc). Si los dos caminos existen y dan mapas distintos, no se dibuja;
+' si solo existe uno, se usa ese.
+Private Function ViewportNeighbor_ResolveCorner(ByVal corner As Integer, ByRef mapId As Integer, ByRef offX As Integer, ByRef offY As Integer) As Boolean
+    Dim vDir As Integer
+    Dim hDir As Integer
+    Dim viaVertical As Integer
+    Dim viaHorizontal As Integer
+    Dim vOffX As Integer
+    Dim vOffY As Integer
+    Dim hOffX As Integer
+    Dim hOffY As Integer
+
+    Call ViewportNeighbor_CornerDirs(corner, vDir, hDir)
+    viaVertical = ViewportNeighbor_CornerPath(vDir, hDir, vOffX, vOffY)
+    viaHorizontal = ViewportNeighbor_CornerPath(hDir, vDir, hOffX, hOffY)
+    If viaVertical > 0 And viaHorizontal > 0 And viaVertical <> viaHorizontal Then Exit Function
+    If viaVertical > 0 Then
+        mapId = viaVertical
+        offX = vOffX
+        offY = vOffY
+    ElseIf viaHorizontal > 0 Then
+        mapId = viaHorizontal
+        offX = hOffX
+        offY = hOffY
+    Else
+        Exit Function
+    End If
+    ViewportNeighbor_ResolveCorner = True
+End Function
+
+' Recalcula las 4 esquinas con los cardinales cargados; las que ya estan en cache quedan fijadas.
+Private Sub ViewportNeighbor_RefreshCorners()
+    Dim corner As Integer
+    Dim mapId As Integer
+    Dim offX As Integer
+    Dim offY As Integer
+    Dim slot As Integer
+
+    For corner = CORNER_NE To CORNER_SW
+        g_corner_map(corner) = 0
+        g_corner_slot(corner) = 0
+        If ViewportNeighbor_ResolveCorner(corner, mapId, offX, offY) Then
+            g_corner_map(corner) = mapId
+            g_corner_offset_x(corner) = offX
+            g_corner_offset_y(corner) = offY
+            slot = ViewportNeighbor_FindSlot(mapId)
+            If slot > 0 Then
+                g_corner_slot(corner) = slot
+                If g_slot_pin(slot) <> g_pin_gen Then Call ViewportNeighbor_Touch(slot)
+            End If
+        End If
+    Next corner
+End Sub
 
 Private Sub ViewportNeighbor_TECoords(ByRef TE As tDatosTE, _
                                       ByVal direction As Integer, _
