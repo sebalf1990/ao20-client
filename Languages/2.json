@@ -401,7 +401,7 @@
 	"MENSAJE_SKILL_DESC_MEDITAR": "Increases mana regeneration while meditating. Increases by meditating. More points mean more mana recovery.",
 	"MENSAJE_SKILL_DESC_APUÑALAR": "Increases the probability of stabbing and landing blows with short weapons. Gained by fighting in melee with daggers.",
 	"MENSAJE_SKILL_DESC_OCULTARSE": "Improves hiding chances. Increases by attempting to hide. More skill means longer hidden time.",
-	"MENSAJE_SKILL_DESC_SUPERVIVENCIA": "Allows drinking from rivers, eating from trees, and seeing hostile NPC health. Improves energy recovery. Increases by fighting or lighting campfires.",
+	"MENSAJE_SKILL_DESC_SUPERVIVENCIA": "Allows seeing hostile NPC health. Increases by fighting or lighting campfires.",
 	"MENSAJE_SKILL_DESC_COMERCIAR": "Higher trading skill reduces item prices in stores. Increases by buying and selling items to NPCs.",
 	"MENSAJE_SKILL_DESC_DEFENSA": "Increases shield defense chances. More points mean higher chance to block hits.",
 	"MENSAJE_SKILL_DESC_LIDERAZGO": "Required to create a clan. Increases manually.",

@@ -401,7 +401,7 @@
 	"MENSAJE_SKILL_DESC_MEDITAR": "Aumenta la cantidad de mana que recuperamos al meditar. Se sube meditando. Al aumentar los puntos de esta habilidad, aumenta la mana que se recupera.",
 	"MENSAJE_SKILL_DESC_APUÑALAR": "Aumenta la probabilidad de apuñalar y de impactar golpes con armas cortas. Se sube luchando cuerpo a cuerpo con dagas.",
 	"MENSAJE_SKILL_DESC_OCULTARSE": "Esta habilidad es responsable de aumentar las posibilidades de esconderse. Se sube tratando de esconderse. Mientras más skills, más tiempo oculto.",
-	"MENSAJE_SKILL_DESC_SUPERVIVENCIA": "Permite tomar agua de ríos, comer de árboles y ver la vida de NPCs hostiles. Aumenta la velocidad de recuperación de energía. Sube combatiendo o prendiendo fogatas.",
+	"MENSAJE_SKILL_DESC_SUPERVIVENCIA": "Permite ver la vida de NPCs hostiles. Sube combatiendo o prendiendo fogatas.",
 	"MENSAJE_SKILL_DESC_COMERCIAR": "Cuanto más puntos en comerciar tengas más baratas te saldrán las cosas en las tiendas. Sube tanto al comprar como al vender items a NPCs.",
 	"MENSAJE_SKILL_DESC_DEFENSA": "Aumenta las chances de defenderte con un escudo. Más puntos significan mayor probabilidad de rechazar el golpe del adversario.",
 	"MENSAJE_SKILL_DESC_LIDERAZGO": "Es la habilidad necesaria para crear un clan. Se sube manualmente.",
