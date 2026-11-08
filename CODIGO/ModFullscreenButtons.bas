@@ -44,6 +44,7 @@ Private Type t_ButtonsPoint
     y As Long
 End Type
 Private Declare Function GetCursorPos Lib "user32" (lpPoint As t_ButtonsPoint) As Long
+Private Declare Function GetActiveWindow Lib "user32" () As Long
 Private Declare Function ScreenToClient Lib "user32" (ByVal hWnd As Long, lpPoint As t_ButtonsPoint) As Long
 Private Declare Function GetDC Lib "user32" (ByVal hWnd As Long) As Long
 Private Declare Function ReleaseDC Lib "user32" (ByVal hWnd As Long, ByVal hdc As Long) As Long
@@ -96,6 +97,16 @@ Private g_menu_last_x(0 To efbCount - 1)     As Long
 Private g_menu_last_y(0 To efbCount - 1)     As Long
 Private g_menu_dirty(0 To efbCount - 1)      As Boolean
 Private g_menu_dirty_tick(0 To efbCount - 1) As Long
+Private g_menu_seq(0 To efbCount - 1)        As Long ' E6: orden de apertura (mayor = mas reciente)
+Private g_menu_seq_counter                   As Long
+
+' E6: Esc cierra la ventana de arriba. Se detecta por flanco en el frame (GetAsyncKeyState) porque el menu
+' abierto tiene el foco y su KeyUp no llega a frmMain. Si cerro algo, el KeyUp que llegue a frmMain en
+' ESC_CONSUME_MS no debe abrir ademas el cartel de salida.
+Private Const ESC_CONSUME_MS As Long = 1000
+Private g_esc_was_down      As Boolean
+Private g_esc_consumed      As Boolean
+Private g_esc_consumed_tick As Long
 
 ' E3: cache de los BMP de los botones (antes LoadInterface releia/descomprimia 15 por repintado).
 ' Se vacia si cambia el idioma (los BMP son localizados).
@@ -315,9 +326,98 @@ Public Sub Update_FullscreenButtonsFrame()
     On Error Resume Next
     If Not g_buttons_active Then Exit Sub
     Call UpdateMenuPositions
+    Call UpdateEscClose
     Call UpdateHoverLeave
     Call Render_ButtonTooltip
 End Sub
+
+' E6: flanco de la tecla Esc. Solo actua si hay algo que cerrar y nada mas usaria la tecla.
+Private Sub UpdateEscClose()
+    On Error GoTo Err_h
+    Dim escState As Integer
+    Dim escHeld As Boolean
+    Dim escPressed As Boolean
+    ' The call also clears the "pressed since last call" bit, so it must run every frame.
+    escState = GetAsyncKeyState(vbKeyEscape)
+    escHeld = (escState < 0)
+    If GetActiveWindow() = 0 Then
+        ' Game not focused: a key already held when focus returns is not a new press.
+        g_esc_was_down = escHeld
+        Exit Sub
+    End If
+    ' New press = went down since last frame, or a tap shorter than a frame (low bit).
+    escPressed = (escHeld And Not g_esc_was_down) Or ((escState And 1) <> 0)
+    g_esc_was_down = escHeld
+    If Not escPressed Then Exit Sub
+    g_esc_consumed = False
+    If CloseTopmostOnEsc() Then
+        g_esc_consumed = True
+        g_esc_consumed_tick = GetTickCount And &H7FFFFFFF
+    End If
+    Exit Sub
+Err_h:
+    Call RegistrarError(Err.Number, Err.Description, "ModFullscreenButtons.UpdateEscClose", Erl)
+    Resume Next
+End Sub
+
+' Cierra, en este orden: el menu de la botonera con foco; el menu abierto mas reciente (si frmMain tiene el
+' foco); la ventana flotante de arriba. No hace nada con chat abierto, dialogos, cartel de salida u otra
+' ventana con foco (esas siguen usando Esc como siempre).
+Private Function CloseTopmostOnEsc() As Boolean
+    On Error GoTo Err_h
+    Dim activeHwnd As Long
+    activeHwnd = GetActiveWindow()
+    If activeHwnd = 0 Then Exit Function
+    If IsInputFocus() Or IsDialogOpen() Or UserSaliendo Then Exit Function
+
+    Dim buttonId As Long
+    Dim menuForm As Form
+    Dim activeMenuId As Long
+    Dim newestMenuId As Long
+    Dim newestSeq As Long
+    activeMenuId = -1
+    newestMenuId = -1
+    For buttonId = 0 To efbCount - 1
+        If LenB(MenuFormName(buttonId)) > 0 Then
+            Set menuForm = FindMenuForm(buttonId)
+            If Not (menuForm Is Nothing) Then
+                If menuForm.Visible Then
+                    If menuForm.hWnd = activeHwnd Then activeMenuId = buttonId
+                    If newestMenuId = -1 Or g_menu_seq(buttonId) >= newestSeq Then
+                        newestMenuId = buttonId
+                        newestSeq = g_menu_seq(buttonId)
+                    End If
+                End If
+            End If
+            Set menuForm = Nothing
+        End If
+    Next buttonId
+
+    If activeMenuId >= 0 Then
+        CloseTopmostOnEsc = CloseMenuIfOpen(activeMenuId)
+        Exit Function
+    End If
+    ' Otra ventana (no de la botonera) tiene el foco: Esc es suyo.
+    If activeHwnd <> frmMain.hWnd Then Exit Function
+    If newestMenuId >= 0 Then
+        CloseTopmostOnEsc = CloseMenuIfOpen(newestMenuId)
+        Exit Function
+    End If
+    CloseTopmostOnEsc = Close_TopFloatingWindow()
+    Exit Function
+Err_h:
+    Call RegistrarError(Err.Number, Err.Description, "ModFullscreenButtons.CloseTopmostOnEsc", Erl)
+    Resume Next
+End Function
+
+' E6: lo llama HandleKeyUp (Esc): True una sola vez si ese Esc ya cerro una ventana al apretarlo.
+Public Function FullscreenEsc_WasConsumed() As Boolean
+    If Not g_esc_consumed Then Exit Function
+    g_esc_consumed = False
+    Dim elapsedMs As Long
+    elapsedMs = (GetTickCount And &H7FFFFFFF) - g_esc_consumed_tick
+    FullscreenEsc_WasConsumed = (elapsedMs < 0 Or elapsedMs <= ESC_CONSUME_MS)
+End Function
 
 Private Sub UpdateHoverLeave()
     On Error Resume Next
@@ -476,18 +576,21 @@ Err_h:
     Resume Next
 End Sub
 
+' Llavero: centrado encima de su boton de la botonera.
+Private Sub AnchorKeysWindow()
+    Dim keysCenterX As Long, keysTopY As Long
+    keysCenterX = frmMain.picFullscreenButtons.Left + ButtonX(efbKeys) + BUTTON_SIZE \ 2
+    keysTopY = frmMain.picFullscreenButtons.Top + ButtonY(efbKeys)
+    FrmKeyInv.Left = frmMain.Left + keysCenterX * screen.TwipsPerPixelX - FrmKeyInv.Width \ 2
+    FrmKeyInv.Top = frmMain.Top + keysTopY * screen.TwipsPerPixelY - FrmKeyInv.Height
+End Sub
+
 Private Sub OpenKeysWindow()
     On Error GoTo Err_h
     FrmKeyInv.Show , frmMain
     ' Posicion recordada si existe; si no, E5: la ventana del llavero se ancla al boton del llavero
     ' (centrada encima), no a 890/555 fijos.
-    If Not ApplySavedMenuPos(FrmKeyInv, efbKeys) Then
-        Dim keysCenterX As Long, keysTopY As Long
-        keysCenterX = frmMain.picFullscreenButtons.Left + ButtonX(efbKeys) + BUTTON_SIZE \ 2
-        keysTopY = frmMain.picFullscreenButtons.Top + ButtonY(efbKeys)
-        FrmKeyInv.Left = frmMain.Left + keysCenterX * screen.TwipsPerPixelX - FrmKeyInv.Width \ 2
-        FrmKeyInv.Top = frmMain.Top + keysTopY * screen.TwipsPerPixelY - FrmKeyInv.Height
-    End If
+    If Not ApplySavedMenuPos(FrmKeyInv, efbKeys) Then Call AnchorKeysWindow
     Call TrackMenuOpened(efbKeys, FrmKeyInv)
     frmMain.cmdLlavero.Tag = "2"
     Exit Sub
@@ -596,9 +699,47 @@ Private Sub TrackMenuOpened(ByVal buttonId As Long, ByVal menuForm As Form)
     Dim posY As Long
     Call CurrentMenuPos(menuForm, posX, posY)
     g_menu_open(buttonId) = True
+    g_menu_seq_counter = g_menu_seq_counter + 1
+    g_menu_seq(buttonId) = g_menu_seq_counter
     g_menu_last_x(buttonId) = posX
     g_menu_last_y(buttonId) = posY
     g_menu_dirty(buttonId) = False
+End Sub
+
+' E6 "Restaurar ventanas": borra las posiciones guardadas de todos los menus y mueve a su lugar por defecto
+' (Llavero: sobre su boton; el resto: centrado en frmMain) los que estan abiertos, sin dejarlos pendientes de guardar.
+Public Sub FullscreenButtons_RestoreMenuPositions()
+    On Error GoTo Err_h
+    Dim buttonId As Long
+    Dim menuForm As Form
+    Dim posX As Long
+    Dim posY As Long
+    For buttonId = 0 To efbCount - 1
+        If LenB(MenuFormName(buttonId)) > 0 Then
+            Call FloatingWindows_ClearMenuPos(MenuFormName(buttonId))
+            g_menu_dirty(buttonId) = False
+            If g_buttons_active Then
+                Set menuForm = FindMenuForm(buttonId)
+                If Not (menuForm Is Nothing) Then
+                    If menuForm.Visible Then
+                        If buttonId = efbKeys Then
+                            Call AnchorKeysWindow
+                        Else
+                            Call menuForm.Move(frmMain.Left + (frmMain.Width - menuForm.Width) / 2, frmMain.Top + (frmMain.Height - menuForm.Height) / 2)
+                        End If
+                        Call CurrentMenuPos(menuForm, posX, posY)
+                        g_menu_last_x(buttonId) = posX
+                        g_menu_last_y(buttonId) = posY
+                    End If
+                End If
+                Set menuForm = Nothing
+            End If
+        End If
+    Next buttonId
+    Exit Sub
+Err_h:
+    Call RegistrarError(Err.Number, Err.Description, "ModFullscreenButtons.FullscreenButtons_RestoreMenuPositions", Erl)
+    Resume Next
 End Sub
 
 Private Sub ResetMenuTracking()

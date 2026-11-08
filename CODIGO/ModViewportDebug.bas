@@ -51,6 +51,10 @@ Private Type t_DebugConsoleLine
     wrapLines() As String
     wrapCount   As Integer
     wrapWidth   As Long
+    ' E6: set when the entry was added or extended since the last recompute; countedLines = wrapped lines
+    ' already accounted for (so only the new lines move the scroll anchor).
+    isNew        As Boolean
+    countedLines As Integer
 End Type
 
 Private g_ring(0 To RING_SIZE - 1) As t_DebugConsoleLine
@@ -86,6 +90,20 @@ Private Const BTN_W           As Long = 38
 Private Const BTN_H           As Long = 16
 Private Const BTN_PAD_X       As Long = 4
 
+' E6: "new messages" indicator shown while the console is scrolled up and lines arrive.
+Private Const UNREAD_TEXT     As String = "v Nuevos mensajes"
+Private Const UNREAD_PAD_X    As Long = 8
+Private Const UNREAD_H        As Long = 18
+Private Const UNREAD_TEXT_Y   As Long = 3
+Private Const UNREAD_BOTTOM   As Long = 4
+Private Const CONSOLE_SCROLLBAR_W As Long = 12
+Private g_pill_drawn          As Boolean
+Private g_pill_x              As Long
+Private g_pill_y              As Long
+Private g_pill_w              As Long
+Private g_console_unread      As Boolean
+Private g_unread_width        As Long
+
 ' Log a archivo: rotacion simple (plan 2026-11-07-fullscreen-pulido-y-vecinos E1).
 Private Const LOG_MAX_BYTES   As Long = 1048576
 Private g_log_disabled        As Boolean
@@ -119,6 +137,7 @@ End Sub
 Public Sub ViewportDebug_SetViewportMode(ByVal IsFullscreen As Boolean)
     g_viewport_full = IsFullscreen
     g_console_scroll_lines = 0
+    g_console_unread = False
     g_wrap_dirty = True
     If IsFullscreen Then
         Call ViewportDebug_EnableMouseWheel
@@ -208,7 +227,15 @@ Public Function ViewportDebug_HandleMouseDown(ByVal x As Long, ByVal y As Long, 
         ViewportDebug_HandleMouseDown = True
         Exit Function
     End If
-    If x >= consX + consW - 12 And x < consX + consW And y >= consY + 22 And y < consY + consH Then
+    If isClick And g_pill_drawn Then
+        If x >= g_pill_x And x < g_pill_x + g_pill_w And y >= g_pill_y And y < g_pill_y + UNREAD_H Then
+            g_console_scroll_lines = 0
+            g_console_unread = False
+            ViewportDebug_HandleMouseDown = True
+            Exit Function
+        End If
+    End If
+    If x >= consX + consW - CONSOLE_SCROLLBAR_W And x < consX + consW And y >= consY + 22 And y < consY + consH Then
         Dim maxScroll As Long
         maxScroll = GetConsoleMaxScroll()
         If maxScroll > 0 Then
@@ -227,12 +254,48 @@ Public Function ViewportDebug_HandleMouseDown(ByVal x As Long, ByVal y As Long, 
             End If
         End If
         ViewportDebug_HandleMouseDown = True
+    ElseIf isClick Then
+        ' E6: any click inside the console box is swallowed so it never reaches the world.
+        ViewportDebug_HandleMouseDown = True
     End If
+End Function
+
+' E6: True when the point is inside the FULL console box (used to block right/middle click-through).
+Public Function ViewportDebug_IsOverConsole(ByVal x As Long, ByVal y As Long) As Boolean
+    If Not g_viewport_full Then Exit Function
+    ViewportDebug_IsOverConsole = IsMouseOverConsole(x, y)
 End Function
 
 Public Sub ViewportDebug_ScrollConsole(ByVal deltaLines As Long)
     g_console_scroll_lines = g_console_scroll_lines + deltaLines
     Call ClampConsoleScroll
+    If g_console_scroll_lines = 0 Then g_console_unread = False
+End Sub
+
+' E6: rectangle of the "new messages" pill (bottom center of the box, left of the scrollbar). Width is cached.
+Private Sub GetUnreadPillRect(ByVal consX As Long, ByVal consY As Long, ByVal consW As Long, ByVal consH As Long, _
+                              ByRef pillX As Long, ByRef pillY As Long, ByRef pillW As Long)
+    If g_unread_width = 0 Then g_unread_width = Engine_Text_Width(UNREAD_TEXT, False, 1) + UNREAD_PAD_X * 2
+    pillW = g_unread_width
+    pillX = consX + (consW - CONSOLE_SCROLLBAR_W - pillW) \ 2
+    pillY = consY + consH - UNREAD_H - UNREAD_BOTTOM
+End Sub
+
+Private Sub Render_ConsoleUnreadPill(ByVal consX As Long, ByVal consY As Long, ByVal consW As Long, ByVal consH As Long)
+    Dim pillX As Long, pillY As Long, pillW As Long
+    Call GetUnreadPillRect(consX, consY, consW, consH, pillX, pillY, pillW)
+    g_pill_x = pillX
+    g_pill_y = pillY
+    g_pill_w = pillW
+    g_pill_drawn = True
+    Dim pillBg As RGBA
+    Dim pillBorder As RGBA
+    Dim pillText(3) As RGBA
+    pillBg = RGBA_From_Comp(20, 20, 20, 235)
+    pillBorder = RGBA_From_Comp(200, 170, 90, 255)
+    Call RGBAList(pillText, 255, 230, 140, 255)
+    Call Engine_Draw_Box_Border(pillX, pillY, pillW, UNREAD_H, pillBg, pillBorder)
+    Call Engine_Text_Render(UNREAD_TEXT, pillX + UNREAD_PAD_X, pillY + UNREAD_TEXT_Y, pillText, 1, False)
 End Sub
 
 ' E5: cantidad de lineas que entran en la caja (misma cuenta que usa el dibujo).
@@ -457,6 +520,8 @@ Private Sub PushOneRingEntry(ByVal text As String, _
         room = CONSOLE_ENTRY_MAX_CHARS - Len(g_ring(lastIndex).text)
         If room > 0 Then
             g_ring(lastIndex).text = g_ring(lastIndex).text & Left$(text, room)
+            If Not g_ring(lastIndex).isNew Then g_ring(lastIndex).countedLines = g_ring(lastIndex).wrapCount
+            g_ring(lastIndex).isNew = True
             g_ring(lastIndex).wrapCount = 0
             g_wrap_dirty = True
         End If
@@ -473,6 +538,8 @@ Private Sub PushOneRingEntry(ByVal text As String, _
         .ts = FrameTime
         .category = category
         .wrapCount = 0
+        .isNew = True
+        .countedLines = 0
     End With
     g_wrap_dirty = True
     g_ring_head = (g_ring_head + 1) Mod RING_SIZE
@@ -541,6 +608,7 @@ End Sub
 
 Public Sub Render_ViewportDebugOverlay()
     On Error GoTo Render_ViewportDebugOverlay_Err
+    g_pill_drawn = False
     If Not g_viewport_full And Not g_overlay_visible Then Exit Sub
 
     Dim sw As Long, sh As Long
@@ -645,6 +713,7 @@ Public Sub Render_ViewportDebugOverlay()
 
         Dim skippedLines As Long
         Dim totalVisual As Long
+        Dim newLines As Long
         Call EnsureFiltersLoaded
         wrapWidth = consW - 24
         ' E3: el total de lineas visuales solo se recalcula si cambio el texto, el filtro o el ancho.
@@ -654,13 +723,28 @@ Public Sub Render_ViewportDebugOverlay()
                 If IsCategoryVisible(g_ring(idx).category) Then
                     Call EnsureEntryWrapped(idx, wrapWidth)
                     totalVisual = totalVisual + g_ring(idx).wrapCount
+                    ' E6: only lines of entries added/extended since the last recompute count as new (a filter or
+                    ' width change re-wraps old entries but never sets isNew).
+                    If g_ring(idx).isNew Then
+                        newLines = newLines + g_ring(idx).wrapCount - g_ring(idx).countedLines
+                        g_ring(idx).countedLines = g_ring(idx).wrapCount
+                    End If
                 End If
+                g_ring(idx).isNew = False
             Next i
             g_console_total_visual = totalVisual
             g_wrap_total_width = wrapWidth
             g_wrap_dirty = False
+            ' E6: scroll counts from the newest line, so when lines arrive while scrolled up the offset grows by the
+            ' same amount to keep the same text on screen, and the indicator is raised. At the bottom nothing changes.
+            ' The count comes from the new lines themselves, so a full ring (old lines dropped) still works.
+            If newLines > 0 And g_console_scroll_lines > 0 Then
+                g_console_scroll_lines = g_console_scroll_lines + newLines
+                g_console_unread = True
+            End If
         End If
         Call ClampConsoleScroll
+        If g_console_scroll_lines = 0 Then g_console_unread = False
 
         For i = 0 To g_ring_count - 1
             idx = (g_ring_head - 1 - i + RING_SIZE) Mod RING_SIZE
@@ -706,6 +790,7 @@ NextEntry:
             scrollThumb = RGBA_From_Comp(235, 235, 235, 220)
             Call Engine_Draw_Box(trackX - 1, thumbY, 8, thumbH, scrollThumb)
         End If
+        If g_console_unread Then Call Render_ConsoleUnreadPill(consX, consY, consW, consH)
     End If
 
     Exit Sub

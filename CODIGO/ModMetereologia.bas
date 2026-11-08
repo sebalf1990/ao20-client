@@ -173,7 +173,12 @@ Public Sub RevisarHoraMundo(Optional ByVal Instantaneo As Boolean = False)
     End Select
 
     UpdateLights = True
-    frmMain.lblhora = Right$("00" & CStr(HoraActual), 2) & ":" & Right$("00" & CStr(Minutos), 2)
+    Dim worldTimeText As String
+    worldTimeText = Right$("00" & CStr(HoraActual), 2) & ":" & Right$("00" & CStr(Minutos), 2)
+    If frmMain.lblhora.Caption <> worldTimeText Then
+        frmMain.lblhora = worldTimeText
+        Call FullscreenHud_MarkTimeDirty
+    End If
     Exit Sub
 
 RevisarHoraMundo_Err:
