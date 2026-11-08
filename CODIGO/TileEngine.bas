@@ -1288,9 +1288,22 @@ End Function
 Public Sub ConvertToMinimapPosition(ByRef x As Single, ByRef y As Single, ByVal MarkerWidth As Single, ByVal MarkerHeight As Single)
     'this hard to understand, minimaps only shows playable area, with the borders cut, so instead of showing every tile on the map we have
     '100x100 pixels for ~78x82 tiles
-    x = (x - HalfWindowTileWidth - 2) * (100 / (100 - 2 * HalfWindowTileWidth - 4)) - MarkerWidth \ 2 - 1
-    y = (y - HalfWindowTileHeight - 1) * (100 / (100 - 2 * HalfWindowTileHeight - 2)) - MarkerHeight \ 2 - 1
+    Dim halfW As Integer, halfH As Integer
+    halfW = MinimapHalfTileWidth()
+    halfH = MinimapHalfTileHeight()
+    x = (x - halfW - 2) * (100 / (100 - 2 * halfW - 4)) - MarkerWidth \ 2 - 1
+    y = (y - halfH - 1) * (100 / (100 - 2 * halfH - 2)) - MarkerHeight \ 2 - 1
 End Sub
+
+' The minimap bitmaps were drawn for the classic HUD viewport. The FULL view is wider, so the live
+' HalfWindowTile* values would stretch the projection (player dot off the box near the right edge).
+Public Function MinimapHalfTileWidth() As Integer
+    MinimapHalfTileWidth = (VIEWPORT_HUD_WIDTH / 32) \ 2
+End Function
+
+Public Function MinimapHalfTileHeight() As Integer
+    MinimapHalfTileHeight = (VIEWPORT_HUD_HEIGHT / 32) \ 2
+End Function
 
 Public Sub UpdatePlayerRoof()
     Dim WasUnderRoof As Boolean: WasUnderRoof = bTecho

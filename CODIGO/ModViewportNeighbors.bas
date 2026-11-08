@@ -27,7 +27,9 @@ Private Const FOG_GREEN As Byte = 14
 Private Const FOG_BLUE As Byte = 18
 
 Private Const MAP_MAX_TILES As Integer = 100
-Private Const NEIGHBOR_MIN_TE_COUNT As Integer = 60
+' Measured 2026-11-07 over all 1877 map sides with cardinal exits: every link has a single offset and
+' 1874 are reciprocal, so even a 1-tile corridor is a real neighbor (catacombs 43/44 use 5 exits).
+Private Const NEIGHBOR_MIN_TE_COUNT As Integer = 1
 Private Const MAX_MAP_ID_GUESS As Integer = 1200
 Private Const CSM_MAX_LAYERS As Integer = 5
 Private Const CSM_MAX_RECORDS As Long = 10000

@@ -781,8 +781,8 @@ Public Sub GetMinimapPosition(ByRef x As Single, ByRef y As Single)
             Exit Sub
         End If
     End If
-    x = x * (100 - 2 * HalfWindowTileWidth - 4) / 100 + HalfWindowTileWidth + 2
-    y = y * (100 - 2 * HalfWindowTileHeight - 4) / 100 + HalfWindowTileHeight + 2
+    x = x * (100 - 2 * MinimapHalfTileWidth() - 4) / 100 + MinimapHalfTileWidth() + 2
+    y = y * (100 - 2 * MinimapHalfTileHeight() - 4) / 100 + MinimapHalfTileHeight() + 2
 End Sub
 
 Public Sub RequestMeditate()
