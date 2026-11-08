@@ -3646,7 +3646,8 @@ Private Sub renderer_MouseMove(Button As Integer, Shift As Integer, x As Single,
     On Error GoTo renderer_MouseMove_Err
     DisableURLDetect
     If ViewportDebug_IsFullscreen() And Button = vbLeftButton Then
-        If ViewportDebug_HandleMouseDown(CLng(x), CLng(y)) Then Exit Sub
+        ' E5: isClick = False -> arrastrar el pulgar de la consola si, pero NO alternar filtros.
+        If ViewportDebug_HandleMouseDown(CLng(x), CLng(y), False) Then Exit Sub
     End If
     Call Form_MouseMove(Button, Shift, renderer.Left + x, renderer.Top + y)
     Exit Sub
@@ -3666,7 +3667,7 @@ Private Sub renderer_MouseDown(Button As Integer, Shift As Integer, x As Single,
         End If
     End If
     If ViewportDebug_IsFullscreen() And Button = vbLeftButton Then
-        If ViewportDebug_HandleMouseDown(CLng(x), CLng(y)) Then
+        If ViewportDebug_HandleMouseDown(CLng(x), CLng(y), True) Then
             m_consumedClick = CLICK_CONSUMED
             Exit Sub
         End If

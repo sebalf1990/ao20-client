@@ -15,7 +15,11 @@ Attribute VB_Name = "ModViewportDebug"
 Option Explicit
 
 Private Const RING_SIZE              As Integer = 80
-Private Const CONSOLE_RENDER_LINES   As Integer = 10
+Private Const CONSOLE_ENTRY_MAX_CHARS As Long = 1024
+Private Const CONSOLE_HEADER_H       As Long = 26
+Private Const CONSOLE_TRACK_TOP      As Long = 24
+Private Const CONSOLE_TRACK_PAD      As Long = 32
+Private Const CONSOLE_THUMB_MIN_H    As Long = 18
 Private Const CLICK_MARKER_MS        As Long = 500
 Private Const OVERLAY_INFO_BOX_W     As Integer = 420
 Private Const OVERLAY_INFO_X         As Integer = 5
@@ -49,7 +53,7 @@ Private Type t_DebugConsoleLine
     wrapWidth   As Long
 End Type
 
-Private g_ring(0 To 79)         As t_DebugConsoleLine
+Private g_ring(0 To RING_SIZE - 1) As t_DebugConsoleLine
 Private g_ring_head             As Integer
 Private g_ring_count            As Integer
 
@@ -108,13 +112,8 @@ Private g_perf_window_start   As Double
 
 Public Sub ViewportDebug_ToggleOverlay()
     g_overlay_visible = Not g_overlay_visible
-    If g_overlay_visible Then
-        Call SetMask(FeatureToggles, eShowViewportDebug)
-        Call ViewportDebug_AppendLog("[OVERLAY] ON", 0, 255, 0)
-    Else
-        Call UnsetMask(FeatureToggles, eShowViewportDebug)
-        Call ViewportDebug_AppendLog("[OVERLAY] OFF", 0, 255, 0)
-    End If
+    ' E5: g_overlay_visible es la unica fuente de verdad (antes se duplicaba en el bit eShowViewportDebug).
+    Call ViewportDebug_AppendLog("[OVERLAY] " & IIf(g_overlay_visible, "ON", "OFF"), 0, 255, 0)
 End Sub
 
 Public Sub ViewportDebug_SetViewportMode(ByVal IsFullscreen As Boolean)
@@ -133,9 +132,6 @@ Public Function ViewportDebug_IsFullscreen() As Boolean
     ViewportDebug_IsFullscreen = g_viewport_full
 End Function
 
-Public Function ViewportDebug_IsOverlayVisible() As Boolean
-    ViewportDebug_IsOverlayVisible = g_overlay_visible
-End Function
 Public Sub ViewportDebug_EnableMouseWheel()
     On Error Resume Next
     If Not g_subclassed_renderer Then g_subclassed_renderer = (Subclass(frmMain.renderer.hWnd, AddressOf ViewportDebug_WndProc) <> 0)
@@ -199,24 +195,36 @@ Private Function ViewportDebug_SignedHiWord(ByVal value As Long) As Long
     ViewportDebug_SignedHiWord = hi
 End Function
 
-Public Function ViewportDebug_HandleMouseDown(ByVal x As Long, ByVal y As Long) As Boolean
+' isClick = True solo desde renderer_MouseDown; desde MouseMove (arrastre) el scroll sigue
+' funcionando pero los filtros NO se alternan (E5).
+Public Function ViewportDebug_HandleMouseDown(ByVal x As Long, ByVal y As Long, ByVal isClick As Boolean) As Boolean
     On Error Resume Next
     If Not g_viewport_full Then Exit Function
     If Not IsMouseOverConsole(x, y) Then Exit Function
 
     Dim consX As Long, consY As Long, consW As Long, consH As Long
     Call GetConsoleRect(consX, consY, consW, consH)
-    If ViewportDebug_HitConsoleFilter(x, y, consX, consY) Then
+    If ViewportDebug_HitConsoleFilter(x, y, consX, consY, isClick) Then
         ViewportDebug_HandleMouseDown = True
         Exit Function
     End If
-    If x >= consX + consW - 12 And x <= consX + consW And y >= consY + 22 And y <= consY + consH Then
-        If g_console_total_visual > 0 Then
-            Dim trackH As Long
-            trackH = consH - 32
+    If x >= consX + consW - 12 And x < consX + consW And y >= consY + 22 And y < consY + consH Then
+        Dim maxScroll As Long
+        maxScroll = GetConsoleMaxScroll()
+        If maxScroll > 0 Then
+            ' E5: el centro del pulgar sigue al cursor; extremo de arriba = linea mas vieja (scroll maximo),
+            ' extremo de abajo = linea mas nueva (scroll 0).
+            Dim trackH As Long, travel As Long, thumbPos As Long
+            trackH = consH - CONSOLE_TRACK_PAD
             If trackH < 1 Then trackH = 1
-            g_console_scroll_lines = (g_console_total_visual * (y - (consY + 24))) \ trackH
-            Call ClampConsoleScroll
+            travel = trackH - ConsoleThumbHeight(trackH)
+            If travel > 0 Then
+                thumbPos = y - (consY + CONSOLE_TRACK_TOP) - ConsoleThumbHeight(trackH) \ 2
+                If thumbPos < 0 Then thumbPos = 0
+                If thumbPos > travel Then thumbPos = travel
+                g_console_scroll_lines = maxScroll - (maxScroll * thumbPos + travel \ 2) \ travel
+                Call ClampConsoleScroll
+            End If
         End If
         ViewportDebug_HandleMouseDown = True
     End If
@@ -227,12 +235,37 @@ Public Sub ViewportDebug_ScrollConsole(ByVal deltaLines As Long)
     Call ClampConsoleScroll
 End Sub
 
+' E5: cantidad de lineas que entran en la caja (misma cuenta que usa el dibujo).
+Private Function ConsoleVisibleLines(ByVal consH As Long) As Long
+    ConsoleVisibleLines = (consH - CONSOLE_HEADER_H) \ OVERLAY_CONSOLE_LINE_H
+End Function
+
+' E5: el scroll maximo es total - lineas visibles (con scroll = total quedaba la caja vacia).
+Private Function GetConsoleMaxScroll() As Long
+    GetConsoleMaxScroll = g_console_total_visual - ConsoleVisibleLines(OVERLAY_CONSOLE_BOX_H)
+    If GetConsoleMaxScroll < 0 Then GetConsoleMaxScroll = 0
+End Function
+
 Private Sub ClampConsoleScroll()
     If g_console_scroll_lines < 0 Then g_console_scroll_lines = 0
-    If g_console_total_visual > 0 Then
-        If g_console_scroll_lines > g_console_total_visual Then g_console_scroll_lines = g_console_total_visual
-    End If
+    Dim maxScroll As Long
+    maxScroll = GetConsoleMaxScroll()
+    If g_console_scroll_lines > maxScroll Then g_console_scroll_lines = maxScroll
 End Sub
+
+Private Function ConsoleThumbHeight(ByVal trackH As Long) As Long
+    Dim visibleLines As Long
+    Dim thumbH As Long
+    visibleLines = ConsoleVisibleLines(OVERLAY_CONSOLE_BOX_H)
+    If g_console_total_visual <= visibleLines Then
+        thumbH = trackH
+    Else
+        thumbH = (visibleLines * trackH) \ g_console_total_visual
+    End If
+    If thumbH < CONSOLE_THUMB_MIN_H Then thumbH = CONSOLE_THUMB_MIN_H
+    If thumbH > trackH Then thumbH = trackH
+    ConsoleThumbHeight = thumbH
+End Function
 
 Private Sub GetConsoleRect(ByRef consX As Long, ByRef consY As Long, ByRef consW As Long, ByRef consH As Long)
     consX = 5
@@ -245,7 +278,7 @@ End Sub
 Private Function IsMouseOverConsole(ByVal x As Long, ByVal y As Long) As Boolean
     Dim consX As Long, consY As Long, consW As Long, consH As Long
     Call GetConsoleRect(consX, consY, consW, consH)
-    IsMouseOverConsole = (x >= consX And x <= consX + consW And y >= consY And y <= consY + consH)
+    IsMouseOverConsole = (x >= consX And x < consX + consW And y >= consY And y < consY + consH)
 End Function
 
 ' ============== API: eventos ==============
@@ -272,7 +305,7 @@ ViewportDebug_PushConsoleLine_Err:
     Resume Next
 End Sub
 
-Private Function WrapConsoleText(ByVal text As String, ByVal maxWidth As Long, ByVal bold As Boolean, ByRef outLines() As String) As Integer
+Private Function WrapConsoleText(ByVal text As String, ByVal maxWidth As Long, ByRef outLines() As String) As Integer
     On Error GoTo WrapConsoleText_Err
     ReDim outLines(0 To 0) As String
     Dim count As Integer
@@ -331,7 +364,7 @@ Private Sub EnsureEntryWrapped(ByVal ringIndex As Integer, ByVal maxWidth As Lon
     Dim tmpLines() As String
     Dim lineCount As Integer
     Dim k As Integer
-    lineCount = WrapConsoleText(g_ring(ringIndex).text, maxWidth, g_ring(ringIndex).bold, tmpLines)
+    lineCount = WrapConsoleText(g_ring(ringIndex).text, maxWidth, tmpLines)
     ReDim g_ring(ringIndex).wrapLines(0 To lineCount - 1) As String
     For k = 0 To lineCount - 1
         g_ring(ringIndex).wrapLines(k) = tmpLines(k)
@@ -373,7 +406,6 @@ End Function
 Private Sub RenderConsoleTextLine(ByVal text As String, _
                                   ByVal x As Long, _
                                   ByVal y As Long, _
-                                  ByVal width As Long, _
                                   ByVal red As Byte, _
                                   ByVal green As Byte, _
                                   ByVal blue As Byte)
@@ -420,10 +452,15 @@ Private Sub PushOneRingEntry(ByVal text As String, _
     If appendToPrevious And g_ring_count > 0 Then
         Dim lastIndex As Integer
         lastIndex = (g_ring_head - 1 + RING_SIZE) Mod RING_SIZE
-        g_ring(lastIndex).text = g_ring(lastIndex).text & text
+        ' E5: tope de largo por entrada (un mensaje que se sigue anexando sin fin crecia sin limite).
+        Dim room As Long
+        room = CONSOLE_ENTRY_MAX_CHARS - Len(g_ring(lastIndex).text)
+        If room > 0 Then
+            g_ring(lastIndex).text = g_ring(lastIndex).text & Left$(text, room)
+            g_ring(lastIndex).wrapCount = 0
+            g_wrap_dirty = True
+        End If
         g_ring(lastIndex).ts = FrameTime
-        g_ring(lastIndex).wrapCount = 0
-        g_wrap_dirty = True
         Exit Sub
     End If
     With g_ring(g_ring_head)
@@ -505,7 +542,6 @@ End Sub
 Public Sub Render_ViewportDebugOverlay()
     On Error GoTo Render_ViewportDebugOverlay_Err
     If Not g_viewport_full And Not g_overlay_visible Then Exit Sub
-    If g_overlay_visible And Not IsSet(FeatureToggles, eShowViewportDebug) Then Exit Sub
 
     Dim sw As Long, sh As Long
     sw = frmMain.renderer.ScaleWidth
@@ -585,6 +621,8 @@ Public Sub Render_ViewportDebugOverlay()
     End If
 
     ' 6) Mirror de consola abajo-izquierda - ajusta texto por ancho hasta antes de hotkeys
+    ' E5: solo en FULL; con F2 en HUD clasico la consola real es el RichTextBox, no se duplica.
+    If Not g_viewport_full Then Exit Sub
     Dim consX As Long, consY As Long, consW As Long, consH As Long
     Call GetConsoleRect(consX, consY, consW, consH)
 
@@ -603,7 +641,7 @@ Public Sub Render_ViewportDebugOverlay()
         Dim wrapWidth As Long
         Dim renderedLines As Integer
         Dim maxLines As Integer
-        maxLines = (consH - 26) \ OVERLAY_CONSOLE_LINE_H
+        maxLines = ConsoleVisibleLines(consH)
 
         Dim skippedLines As Long
         Dim totalVisual As Long
@@ -636,7 +674,7 @@ Public Sub Render_ViewportDebugOverlay()
                         skippedLines = skippedLines + 1
                     Else
                         If bottomY < minY Then Exit For
-                        Call RenderConsoleTextLine(.wrapLines(wrappedIdx), consX + 5, bottomY, consW - 24, CByte(.red And 255), CByte(.green And 255), CByte(.blue And 255))
+                        Call RenderConsoleTextLine(.wrapLines(wrappedIdx), consX + 5, bottomY, CByte(.red And 255), CByte(.green And 255), CByte(.blue And 255))
                         bottomY = bottomY - OVERLAY_CONSOLE_LINE_H
                         renderedLines = renderedLines + 1
                         If renderedLines >= maxLines Then Exit For
@@ -652,24 +690,18 @@ NextEntry:
         If g_ring_count > 0 Then
             Dim trackX As Long, trackY As Long, trackH As Long
             trackX = consX + consW - 8
-            trackY = consY + 24
-            trackH = consH - 32
+            trackY = consY + CONSOLE_TRACK_TOP
+            trackH = consH - CONSOLE_TRACK_PAD
             Dim scrollTrack As RGBA
             scrollTrack = RGBA_From_Comp(220, 220, 220, 80)
             Call Engine_Draw_Box(trackX, trackY, 6, trackH, scrollTrack)
 
-            Dim thumbH As Long, thumbY As Long
-            If g_console_total_visual <= 0 Then
-                thumbH = trackH
-            ElseIf g_console_total_visual <= maxLines Then
-                thumbH = trackH
-            Else
-                thumbH = (maxLines * trackH) \ g_console_total_visual
-            End If
-            If thumbH < 18 Then thumbH = 18
-            If thumbH > trackH Then thumbH = trackH
+            Dim thumbH As Long, thumbY As Long, maxScrollLines As Long
+            thumbH = ConsoleThumbHeight(trackH)
             thumbY = trackY
-            If g_console_total_visual > maxLines Then thumbY = trackY + (g_console_scroll_lines * (trackH - thumbH)) \ (g_console_total_visual - maxLines)
+            maxScrollLines = GetConsoleMaxScroll()
+            ' E5: scroll 0 = lineas mas nuevas = pulgar abajo; scroll maximo = lineas mas viejas = pulgar arriba.
+            If maxScrollLines > 0 Then thumbY = trackY + ((maxScrollLines - g_console_scroll_lines) * (trackH - thumbH)) \ maxScrollLines
             Dim scrollThumb As RGBA
             scrollThumb = RGBA_From_Comp(235, 235, 235, 220)
             Call Engine_Draw_Box(trackX - 1, thumbY, 8, thumbH, scrollThumb)
@@ -849,20 +881,23 @@ Private Sub DrawFilterButton(ByVal x As Long, ByVal y As Long, ByVal label As St
     End If
 End Sub
 
-Public Function ViewportDebug_HitConsoleFilter(ByVal mx As Long, ByVal my As Long, ByVal consX As Long, ByVal consY As Long) As Boolean
+' isClick = False: solo informa si el cursor esta sobre un filtro (lo consume) sin alternarlo ni escribir el ini.
+Public Function ViewportDebug_HitConsoleFilter(ByVal mx As Long, ByVal my As Long, ByVal consX As Long, ByVal consY As Long, ByVal isClick As Boolean) As Boolean
     Dim btnX As Long
     Dim btnY As Long
     btnY = consY + 3
     btnX = consX + 5
-    If my < btnY Or my > btnY + BTN_H Then Exit Function
+    If my < btnY Or my >= btnY + BTN_H Then Exit Function
     Dim i As Long
     For i = 0 To 2
-        If mx >= btnX And mx <= btnX + BTN_W Then
-            Select Case i
-                Case 0: Call ViewportDebug_ToggleCategory(e_ConsoleCat_General)
-                Case 1: Call ViewportDebug_ToggleCategory(e_ConsoleCat_Combat)
-                Case 2: Call ViewportDebug_ToggleCategory(e_ConsoleCat_Global)
-            End Select
+        If mx >= btnX And mx < btnX + BTN_W Then
+            If isClick Then
+                Select Case i
+                    Case 0: Call ViewportDebug_ToggleCategory(e_ConsoleCat_General)
+                    Case 1: Call ViewportDebug_ToggleCategory(e_ConsoleCat_Combat)
+                    Case 2: Call ViewportDebug_ToggleCategory(e_ConsoleCat_Global)
+                End Select
+            End If
             ViewportDebug_HitConsoleFilter = True
             Exit Function
         End If
