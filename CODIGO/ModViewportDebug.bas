@@ -109,8 +109,8 @@ Private Const LOG_MAX_BYTES   As Long = 1048576
 Private g_log_disabled        As Boolean
 
 ' E0 medicion (plan 2026-11-07-fullscreen-pulido-y-vecinos): solo al log diag.
-' Apagar poniendo PERF_ENABLED en False (pendiente: sacar al cerrar el plan).
-Private Const PERF_ENABLED      As Boolean = True
+' Off since plan 2026-11-07-fullscreen-pulido-y-vecinos closed; set True to re-measure ([PERF] lines).
+Private Const PERF_ENABLED      As Boolean = False
 Private Const PERF_WINDOW_MS    As Double = 5000
 Public Const PERF_PIECE_HUD       As Long = 0
 Public Const PERF_PIECE_CONSOLE   As Long = 1
