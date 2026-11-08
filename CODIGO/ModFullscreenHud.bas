@@ -4,7 +4,7 @@ Attribute VB_Name = "ModFullscreenHud"
 '    Render DX del HUD vital en modo viewport fullscreen.
 '    V9.6: consola wrap por pixeles y minimapa con posicion.
 '    Top-right: nombre del mapa y coords alineados a la derecha del minimapa (con truncado por ancho),
-'    minimap con contorno, fuerza/agilidad alineadas a derecha. No dibuja hora ni oro.
+'    minimap con contorno, fuerza/agilidad, hora del mundo y oro alineados a derecha.
 '
 '    Plan: ia/archivo/plans/2026/2026-05-21-viewport-fullscreen-hud-flotante.md (Etapa 9)
 '
@@ -72,6 +72,15 @@ Private g_str_width         As Long
 Private g_agi_text          As String
 Private g_agi_value         As Long
 Private g_agi_width         As Long
+' E6: hora del mundo (misma fuente que el HUD clasico: frmMain.lblhora) y oro, con texto y ancho en cache.
+Private g_time_src          As String
+Private g_time_text         As String
+Private g_time_width        As Long
+Private g_gld_ready         As Boolean
+Private g_gld_value         As Long
+Private g_gld_over_limit    As Boolean
+Private g_gld_text          As String
+Private g_gld_width         As Long
 
 Public Sub Set_FullscreenHudActive(ByVal active As Boolean)
     g_fullscreen_hud_active = active
@@ -454,6 +463,32 @@ Private Sub Render_HudTopRight()
         g_agi_width = HudTextWidth(g_agi_text)
     End If
     Call RenderHudTextLine(g_agi_text, FULL_MINIMAP_X + MINIMAP_W - g_agi_width, statsY + 16, 255, 255, 255)
+
+    ' E6: hora del mundo y oro bajo Agilidad (mismo estilo/alineacion). El oro usa el color del HUD clasico:
+    ' amarillo normal, rojo si supera el limite por nivel.
+    Dim timeCaption As String
+    timeCaption = frmMain.lblhora.Caption
+    If LenB(g_time_text) = 0 Or timeCaption <> g_time_src Then
+        g_time_src = timeCaption
+        g_time_text = "Hora: " & timeCaption
+        g_time_width = HudTextWidth(g_time_text)
+    End If
+    Call RenderHudTextLine(g_time_text, FULL_MINIMAP_X + MINIMAP_W - g_time_width, statsY + 32, 255, 255, 255)
+
+    Dim overLimit As Boolean
+    overLimit = (UserStats.GLD > UserStats.Lvl * UserStats.OroPorNivel)
+    If Not g_gld_ready Or g_gld_value <> UserStats.GLD Or g_gld_over_limit <> overLimit Then
+        g_gld_ready = True
+        g_gld_value = UserStats.GLD
+        g_gld_over_limit = overLimit
+        g_gld_text = "Oro: " & PonerPuntos(g_gld_value)
+        g_gld_width = HudTextWidth(g_gld_text)
+    End If
+    If g_gld_over_limit Then
+        Call RenderHudTextLine(g_gld_text, FULL_MINIMAP_X + MINIMAP_W - g_gld_width, statsY + 48, 255, 0, 0)
+    Else
+        Call RenderHudTextLine(g_gld_text, FULL_MINIMAP_X + MINIMAP_W - g_gld_width, statsY + 48, 255, 255, 128)
+    End If
     Exit Sub
 Render_HudTopRight_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModFullscreenHud.Render_HudTopRight", Erl)
