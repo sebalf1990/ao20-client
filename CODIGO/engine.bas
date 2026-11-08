@@ -811,6 +811,8 @@ Public Sub render()
     perfT = Perf_FrameStart()
     Call Render_FullscreenBuffsPanel
     Call Perf_FrameAdd(PERF_PIECE_BUFFS, perfT)
+    ' E5: limpia el hover de la botonera si el cursor ya salio del panel.
+    Call Update_FullscreenButtonsHover
     Call Perf_FrameEnd
 
     #If DXUI = 0 Then
