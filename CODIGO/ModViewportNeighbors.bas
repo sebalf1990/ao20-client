@@ -1070,7 +1070,13 @@ End Sub
 ' la carga que sigue lo usa y lo borra).
 Private Function ViewportNeighbor_MapFileExists(ByVal mapId As Integer) As Boolean
     On Error GoTo ViewportNeighbor_MapFileExists_Err
+#If Compresion = 1 Then
+    ' Under Compresion the maps live in the pack: checking via MapPath would extract the whole file
+    ' (outside the time budget, and leave a temp behind). Assume it exists; the loader handles failure.
+    ViewportNeighbor_MapFileExists = True
+#Else
     ViewportNeighbor_MapFileExists = (LenB(Dir$(ViewportNeighbor_MapPath(mapId))) <> 0)
+#End If
     Exit Function
 ViewportNeighbor_MapFileExists_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModViewportNeighbors.ViewportNeighbor_MapFileExists", Erl)
