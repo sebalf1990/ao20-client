@@ -559,20 +559,14 @@ Private Sub HandleLogged()
     UserDescansar = False
     Nombres = True
     Pregunta = False
-    frmMain.stabar.visible = True
     frmMain.panelInf.Picture = LoadInterface("ventanaprincipal_stats.bmp")
     frmMain.HpBar.visible = True
     If UserStats.maxman <> 0 Then
         frmMain.manabar.visible = True
     End If
-    frmMain.hambar.visible = True
-    frmMain.AGUbar.visible = True
     frmMain.Hpshp.visible = (UserStats.MinHp > 0)
     frmMain.shieldBar.visible = (UserStats.HpShield > 0)
     frmMain.MANShp.visible = (UserStats.minman > 0)
-    frmMain.STAShp.visible = (UserStats.MinSTA > 0)
-    frmMain.AGUAsp.visible = (UserStats.MinAGU > 0)
-    frmMain.COMIDAsp.visible = (UserStats.MinHAM > 0)
     frmMain.GldLbl.visible = True
     frmMain.Fuerzalbl.visible = True
     frmMain.AgilidadLbl.visible = True
@@ -728,18 +722,12 @@ Public Sub HandleDisconnect()
     frmMain.cmdMoverHechi(0).visible = False
     frmMain.cmdMoverHechi(1).visible = False
     QuePestañaInferior = 0
-    frmMain.stabar.visible = True
     frmMain.HpBar.visible = True
     frmMain.manabar.visible = True
-    frmMain.hambar.visible = True
-    frmMain.AGUbar.visible = True
     frmMain.shieldBar.visible = (UserStats.HpShield > 0)
     frmMain.Hpshp.visible = True
     frmMain.shieldBar.visible = True
     frmMain.MANShp.visible = True
-    frmMain.STAShp.visible = True
-    frmMain.AGUAsp.visible = True
-    frmMain.COMIDAsp.visible = True
     frmMain.GldLbl.visible = True
     frmMain.Fuerzalbl.visible = True
     frmMain.AgilidadLbl.visible = True
@@ -1958,7 +1946,6 @@ Private Sub HandleConsoleMessage()
     Dim Hechizo        As Integer
     Dim userName       As String
     Dim Valor          As String
-    Dim staminaCost    As String
     chat = Reader.ReadString8()
     FontIndex = Reader.ReadInt8()
     If Reader.GetAvailable() > 0 Then Channel = Reader.ReadInt8()
@@ -1975,14 +1962,9 @@ Private Sub HandleConsoleMessage()
             chat = objname & " " & ElementalTagsToTxtParser(ElementalTags) & ReadField(3, chat, Asc("*"))
         Case "HECINF"
             Hechizo = ReadField(2, chat, Asc("*"))
-            If HechizoData(Hechizo).StaPercentRequired > 0 Then
-                staminaCost = CStr(HechizoData(Hechizo).StaPercentRequired) & "% de stamina total."
-            Else
-                staminaCost = HechizoData(Hechizo).StaRequerido & " puntos."
-            End If
             chat = "------------< Información del hechizo >------------" & vbCrLf & "Nombre: " & HechizoData(Hechizo).nombre & vbCrLf & "Descripción: " & HechizoData( _
                     Hechizo).desc & vbCrLf & "Skill requerido: " & HechizoData(Hechizo).MinSkill & " de magia." & vbCrLf & "Mana necesario: " & HechizoData( _
-                    Hechizo).ManaRequerido & " puntos." & vbCrLf & "Stamina necesaria: " & staminaCost
+                    Hechizo).ManaRequerido & " puntos."
         Case "ProMSG"
             Hechizo = ReadField(2, chat, Asc("*"))
             chat = HechizoData(Hechizo).PropioMsg

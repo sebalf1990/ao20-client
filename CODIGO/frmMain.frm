@@ -597,6 +597,7 @@ Begin VB.Form frmMain
          Left            =   795
          TabIndex        =   33
          Top             =   2055
+         Visible         =   0   'False
          Width           =   765
       End
       Begin VB.Label hambar 
@@ -617,6 +618,7 @@ Begin VB.Form frmMain
          Left            =   3390
          TabIndex        =   32
          Top             =   2055
+         Visible         =   0   'False
          Width           =   255
       End
       Begin VB.Label AGUbar 
@@ -637,6 +639,7 @@ Begin VB.Form frmMain
          Left            =   2445
          TabIndex        =   31
          Top             =   2055
+         Visible         =   0   'False
          Width           =   255
       End
       Begin VB.Label HpBar 
@@ -919,18 +922,21 @@ Begin VB.Form frmMain
          Height          =   108
          Left            =   516
          Top             =   2088
+         Visible         =   0   'False
          Width           =   1068
       End
       Begin VB.Image AGUAsp 
          Height          =   108
          Left            =   2340
          Top             =   2088
+         Visible         =   0   'False
          Width           =   384
       End
       Begin VB.Image COMIDAsp 
          Height          =   96
          Left            =   3288
          Top             =   2100
+         Visible         =   0   'False
          Width           =   384
       End
       Begin VB.Image ImgSegClan 
@@ -2855,18 +2861,12 @@ Private Sub panelinferior_Click(Index As Integer)
         Case 0
             QuePestañaInferior = 0
             panelInf.Picture = LoadInterface("ventanaprincipal_stats.bmp")
-            stabar.visible = True
             HpBar.visible = True
             If UserStats.maxman <> 0 Then
                 manabar.visible = True
             End If
-            hambar.visible = True
-            AGUbar.visible = True
             Hpshp.visible = True
             MANShp.visible = True
-            STAShp.visible = True
-            AGUAsp.visible = True
-            COMIDAsp.visible = True
             GldLbl.visible = True
             ' Label6.Visible = True
             Fuerzalbl.visible = True
@@ -2967,7 +2967,7 @@ End Sub
 Private Sub MacroLadder_Timer()
     On Error GoTo MacroLadder_Timer_Err
     If pausa Then Exit Sub
-    If UserMacro.cantidad > 0 And UserMacro.Activado And UserStats.MinSTA > 0 Then
+    If UserMacro.cantidad > 0 And UserMacro.Activado Then
         Select Case UserMacro.TIPO
             Case 1 'Alquimia
                 Call WriteCraftAlquimista(UserMacro.Index)
@@ -4227,15 +4227,6 @@ Public Sub UpdateStatsLayout()
         frmMain.MANShp.Width = 0
         frmMain.MANShp.visible = False
     End If
-    If UserStats.MaxSTA > 0 Then
-        frmMain.STAShp.Width = UserStats.MinSTA / UserStats.MaxSTA * 89
-    Else
-        frmMain.STAShp.Width = 0
-    End If
-    frmMain.stabar.Caption = UserStats.MinSTA & " / " & UserStats.MaxSTA
-    If QuePestañaInferior = 0 Then
-        frmMain.STAShp.visible = (UserStats.MinSTA > 0)
-    End If
     frmMain.lblLvl.Caption = ListaClases(UserStats.Clase) & " - " & JsonLanguage.Item("MENSAJE_NIVEL_CLASE") & UserStats.Lvl
     Call frmMain.UpdateGoldState
 End Sub
@@ -4263,22 +4254,13 @@ Public Sub UpdateManaBar()
 End Sub
 
 Public Sub UpdateFoodState()
-    frmMain.AGUAsp.Width = UserStats.MinAGU / UserStats.MaxAGU * 32
-    frmMain.COMIDAsp.Width = UserStats.MinHAM / UserStats.MaxHAM * 32
-    frmMain.AGUbar.Caption = UserStats.MinAGU '& " / " & UserMaxAGU
-    frmMain.hambar.Caption = UserStats.MinHAM ' & " / " & UserMaxHAM
-    If QuePestañaInferior = 0 Then
-        frmMain.AGUAsp.visible = (UserStats.MinAGU > 0)
-        frmMain.COMIDAsp.visible = (UserStats.MinHAM > 0)
-    End If
+    ' Hambre y sed ya no se muestran en el HUD (plan 2026-11-08-reemplazo-hambre-sed-energia).
+    ' El server puede seguir enviando el paquete; se lee en Protocol pero no se dibuja.
 End Sub
 
 Public Sub UpdateStamina()
-    frmMain.STAShp.Width = UserStats.MinSTA / UserStats.MaxSTA * 89
-    frmMain.stabar.Caption = UserStats.MinSTA & " / " & UserStats.MaxSTA
-    If QuePestañaInferior = 0 Then
-        frmMain.STAShp.visible = (UserStats.MinSTA > 0)
-    End If
+    ' La energia ya no se muestra en el HUD (plan 2026-11-08-reemplazo-hambre-sed-energia).
+    ' El server puede seguir enviando el paquete; se lee en Protocol pero no se dibuja.
 End Sub
 
 Public Sub UpdateGoldState()

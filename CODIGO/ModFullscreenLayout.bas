@@ -72,7 +72,7 @@ Public Sub Init_FullscreenLayout()
     Call AddSlot("btnExpRemaining", eFlaHide)
 
     ' Etapas siguientes agregaran:
-    '  Etapa 2: party, displays vitales (HP/Mana/Sta), stats (Fuerza/Agilidad), mirror consola
+    '  Etapa 2: party, displays vitales (solo HP/Mana; sin Sta, hambre ni sed), stats (Fuerza/Agilidad), mirror consola
     '  Etapa 3: botones de seguros + iconos de menus a bottom-right
     '  Etapa 4: panel DX de buffs/CDs
 
