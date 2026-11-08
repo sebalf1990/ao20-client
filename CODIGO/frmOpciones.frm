@@ -430,6 +430,26 @@ Begin VB.Form frmOpciones
          Value           =   230
          Width           =   3000
       End
+      Begin VB.Label lblRestoreWindows
+         AutoSize        =   -1  'True
+         BackStyle       =   0  'Transparent
+         Caption         =   "Restaurar ventanas"
+         BeginProperty Font
+            Name            =   "Tahoma"
+            Size            =   8.25
+            Charset         =   0
+            Weight          =   400
+            Underline       =   -1  'True
+            Italic          =   0   'False
+            Strikethrough   =   0   'False
+         EndProperty
+         ForeColor       =   &H0080FFFF&
+         Height          =   240
+         Left            =   4080
+         TabIndex        =   202
+         Top             =   3930
+         Width           =   1800
+      End
       Begin VB.Label lblMenuAlpha 
          AutoSize        =   -1  'True
          BackStyle       =   0  'Transparent
@@ -776,6 +796,19 @@ Private Sub scrMenuAlpha_Scroll()
     Call MenuTransparency_Preview(scrMenuAlpha.value)
     Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     Call ModFloatingWindows.Refresh_FloatingWindowsTransparency
+End Sub
+
+' E6: devuelve las ventanas flotantes y los menus de la botonera a su posicion original.
+Private Sub lblRestoreWindows_Click()
+    On Error GoTo lblRestoreWindows_Click_Err
+    Call ModFloatingWindows.FloatingWindows_RestoreDefaults
+    With FontTypes(FontTypeNames.FONTTYPE_INFO)
+        Call ShowConsoleMsg("Ventanas restauradas a su posición original.", .red, .green, .blue, .bold, .italic)
+    End With
+    Exit Sub
+lblRestoreWindows_Click_Err:
+    Call RegistrarError(Err.Number, Err.Description, "frmOpciones.lblRestoreWindows_Click", Erl)
+    Resume Next
 End Sub
 
 Public Function Is_Transparent(ByVal hWnd As Long) As Boolean

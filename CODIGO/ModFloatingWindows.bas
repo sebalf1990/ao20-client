@@ -26,6 +26,10 @@ Private Const LEGACY_LAYOUT_FILE As String = "fullscreen_windows.ini"
 ' claves InvLeft/InvTop/InvPinned/InvVisible y SpellLeft/SpellTop/SpellPinned/SpellVisible.
 Private Const LAYOUT_SECTION     As String = "FloatingWindows"
 Private Const LAYOUT_MIGRATED    As String = "Migrated"
+Private Const DEFAULT_INV_LEFT   As Long = 270
+Private Const DEFAULT_INV_TOP    As Long = 180
+Private Const DEFAULT_SPELL_LEFT As Long = 540
+Private Const DEFAULT_SPELL_TOP  As Long = 180
 
 ' Layout de la ventana flotante de Hechizos (ref: picFullSpellList anidado en picFullSpellWindow)
 Private Const SPELL_LIST_TOP As Long = 28
@@ -262,8 +266,8 @@ Private Sub LoadFloatingWindowState()
     On Error GoTo LoadFloatingWindowState_Err
     If g_loaded Then Exit Sub
     Call MigrateLegacyLayout
-    Call LoadOneWindow(efwInventory, 270, 180)
-    Call LoadOneWindow(efwSpells, 540, 180)
+    Call LoadOneWindow(efwInventory, DEFAULT_INV_LEFT, DEFAULT_INV_TOP)
+    Call LoadOneWindow(efwSpells, DEFAULT_SPELL_LEFT, DEFAULT_SPELL_TOP)
     g_loaded = True
     Exit Sub
 LoadFloatingWindowState_Err:
@@ -363,6 +367,54 @@ FloatingWindows_LoadMenuPos_Err:
     Call RegistrarError(Err.Number, Err.Description, "ModFloatingWindows.FloatingWindows_LoadMenuPos", Erl)
     Resume Next
 End Function
+
+' E6 "Restaurar ventanas": borra de [FloatingWindows] las claves de las ventanas flotantes y de los menus de la
+' botonera (queda Migrated=1) y devuelve a su lugar por defecto las que estan abiertas.
+Public Sub FloatingWindows_RestoreDefaults()
+    On Error GoTo FloatingWindows_RestoreDefaults_Err
+    Dim windowId As Long
+    Dim suffixIndex As Long
+    Dim suffixes As Variant
+    suffixes = Array("Left", "Top", "Pinned", "Visible")
+    For windowId = efwInventory To efwSpells
+        For suffixIndex = LBound(suffixes) To UBound(suffixes)
+            Call RemoveSetting(LAYOUT_SECTION, KeyPrefix(windowId) & CStr(suffixes(suffixIndex)))
+        Next suffixIndex
+    Next windowId
+    Call SaveSetting(LAYOUT_SECTION, LAYOUT_MIGRATED, "1")
+    Call FullscreenButtons_RestoreMenuPositions
+    If g_floating_active Then
+        Dim ctl As PictureBox
+        For windowId = efwInventory To efwSpells
+            g_pinned(windowId) = False
+            Set ctl = WindowCtl(windowId)
+            If windowId = efwInventory Then
+                ctl.Left = DEFAULT_INV_LEFT
+                ctl.Top = DEFAULT_INV_TOP
+            Else
+                ctl.Left = DEFAULT_SPELL_LEFT
+                ctl.Top = DEFAULT_SPELL_TOP
+            End If
+            Call ClampWindowToViewport(ctl)
+            If ctl.Visible Then Call RenderFloatingWindow(windowId)
+        Next windowId
+    End If
+    Exit Sub
+FloatingWindows_RestoreDefaults_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModFloatingWindows.FloatingWindows_RestoreDefaults", Erl)
+    Resume Next
+End Sub
+
+' E6: borra la posicion guardada de un menu de la botonera.
+Public Sub FloatingWindows_ClearMenuPos(ByVal formName As String)
+    On Error GoTo FloatingWindows_ClearMenuPos_Err
+    Call RemoveSetting(LAYOUT_SECTION, formName & "Left")
+    Call RemoveSetting(LAYOUT_SECTION, formName & "Top")
+    Exit Sub
+FloatingWindows_ClearMenuPos_Err:
+    Call RegistrarError(Err.Number, Err.Description, "ModFloatingWindows.FloatingWindows_ClearMenuPos", Erl)
+    Resume Next
+End Sub
 
 Private Sub SaveFloatingWindowState(ByVal windowId As e_FloatingWindowId)
     On Error GoTo SaveFloatingWindowState_Err

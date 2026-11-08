@@ -58,6 +58,11 @@ Public Sub SaveSetting(ByVal Section As String, ByVal Name As String, ByVal valu
     Call WriteVar(App.path & CustomSettingsFile, Section, Name, value)
 End Sub
 
+' E6: deletes a key from Configuracion.ini (null value), so GetSetting falls back to the default.
+Public Sub RemoveSetting(ByVal Section As String, ByVal Name As String)
+    Call writeprivateprofilestring(Section, Name, vbNullString, App.path & CustomSettingsFile)
+End Sub
+
 Public Sub LoadHotkeys()
     Dim i As Integer
     Call ClearHotkeys

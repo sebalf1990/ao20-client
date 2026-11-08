@@ -567,18 +567,21 @@ Err_h:
     Resume Next
 End Sub
 
+' Llavero: centrado encima de su boton de la botonera.
+Private Sub AnchorKeysWindow()
+    Dim keysCenterX As Long, keysTopY As Long
+    keysCenterX = frmMain.picFullscreenButtons.Left + ButtonX(efbKeys) + BUTTON_SIZE \ 2
+    keysTopY = frmMain.picFullscreenButtons.Top + ButtonY(efbKeys)
+    FrmKeyInv.Left = frmMain.Left + keysCenterX * screen.TwipsPerPixelX - FrmKeyInv.Width \ 2
+    FrmKeyInv.Top = frmMain.Top + keysTopY * screen.TwipsPerPixelY - FrmKeyInv.Height
+End Sub
+
 Private Sub OpenKeysWindow()
     On Error GoTo Err_h
     FrmKeyInv.Show , frmMain
     ' Posicion recordada si existe; si no, E5: la ventana del llavero se ancla al boton del llavero
     ' (centrada encima), no a 890/555 fijos.
-    If Not ApplySavedMenuPos(FrmKeyInv, efbKeys) Then
-        Dim keysCenterX As Long, keysTopY As Long
-        keysCenterX = frmMain.picFullscreenButtons.Left + ButtonX(efbKeys) + BUTTON_SIZE \ 2
-        keysTopY = frmMain.picFullscreenButtons.Top + ButtonY(efbKeys)
-        FrmKeyInv.Left = frmMain.Left + keysCenterX * screen.TwipsPerPixelX - FrmKeyInv.Width \ 2
-        FrmKeyInv.Top = frmMain.Top + keysTopY * screen.TwipsPerPixelY - FrmKeyInv.Height
-    End If
+    If Not ApplySavedMenuPos(FrmKeyInv, efbKeys) Then Call AnchorKeysWindow
     Call TrackMenuOpened(efbKeys, FrmKeyInv)
     frmMain.cmdLlavero.Tag = "2"
     Exit Sub
@@ -692,6 +695,42 @@ Private Sub TrackMenuOpened(ByVal buttonId As Long, ByVal menuForm As Form)
     g_menu_last_x(buttonId) = posX
     g_menu_last_y(buttonId) = posY
     g_menu_dirty(buttonId) = False
+End Sub
+
+' E6 "Restaurar ventanas": borra las posiciones guardadas de todos los menus y mueve a su lugar por defecto
+' (Llavero: sobre su boton; el resto: centrado en frmMain) los que estan abiertos, sin dejarlos pendientes de guardar.
+Public Sub FullscreenButtons_RestoreMenuPositions()
+    On Error GoTo Err_h
+    Dim buttonId As Long
+    Dim menuForm As Form
+    Dim posX As Long
+    Dim posY As Long
+    For buttonId = 0 To efbCount - 1
+        If LenB(MenuFormName(buttonId)) > 0 Then
+            Call FloatingWindows_ClearMenuPos(MenuFormName(buttonId))
+            g_menu_dirty(buttonId) = False
+            If g_buttons_active Then
+                Set menuForm = FindMenuForm(buttonId)
+                If Not (menuForm Is Nothing) Then
+                    If menuForm.Visible Then
+                        If buttonId = efbKeys Then
+                            Call AnchorKeysWindow
+                        Else
+                            Call menuForm.Move(frmMain.Left + (frmMain.Width - menuForm.Width) / 2, frmMain.Top + (frmMain.Height - menuForm.Height) / 2)
+                        End If
+                        Call CurrentMenuPos(menuForm, posX, posY)
+                        g_menu_last_x(buttonId) = posX
+                        g_menu_last_y(buttonId) = posY
+                    End If
+                End If
+                Set menuForm = Nothing
+            End If
+        End If
+    Next buttonId
+    Exit Sub
+Err_h:
+    Call RegistrarError(Err.Number, Err.Description, "ModFullscreenButtons.FullscreenButtons_RestoreMenuPositions", Erl)
+    Resume Next
 End Sub
 
 Private Sub ResetMenuTracking()
