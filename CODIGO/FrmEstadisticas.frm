@@ -1116,7 +1116,7 @@ Private Sub Command1_Click(Index As Integer)
             ' en 0 y no se bloquea nada (comportamiento legacy).
             If ProfessionsActive = 1 And indice >= 17 And indice <= 23 Then
                 If UserProfessions(indice) = 0 Then
-                    Call ShowConsoleMsg("Necesitas aprender la profesion antes de asignarle puntos.")
+                    Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_PROFESION_ASIGNAR_PUNTOS"))
                     Exit Sub
                 End If
             End If

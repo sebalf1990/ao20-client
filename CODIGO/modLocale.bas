@@ -54,6 +54,11 @@ Public Function Locale_Parse_ServerMessage(ByVal bytHeader As Integer, Optional 
     If bytHeader = 1105 Then
         Call UserInTileToTxtParser(Fields)
     End If
+    ' Plan 2026-11-08-revision-profesiones-y-navegacion: the server sends the skill id of the profession as
+    ' param 1 (no protocol change); the name is resolved here with the player's language.
+    If bytHeader = 9000 Or bytHeader = 9001 Or bytHeader = 9002 Or bytHeader = 9007 Or bytHeader = 9026 Then
+        Call ProfessionIdToLocalizedName(Fields)
+    End If
     If bytHeader = 473 Then
         Call SkillsNamesToTxtParser(Fields)
     End If
@@ -137,6 +142,17 @@ Private Sub AppendInvalidCharacterSlots(ByRef messageText As String, ByRef slotD
             messageText = messageText & vbCrLf & Replace(JsonLanguage.Item("MENSAJE_SLOT_INVALIDO_FORMATO"), "¬1", slotData(i))
         End If
     Next i
+End Sub
+
+' Replaces a skill id (first field) with the localized skill name. Anything that is not a valid skill id
+' (an older server sending the name itself) is left untouched.
+Private Sub ProfessionIdToLocalizedName(ByRef Fields() As String)
+    Dim skillId As Long
+    If UBound(Fields) < 0 Then Exit Sub
+    skillId = val(Fields(0))
+    If skillId >= 1 And skillId <= NUMSKILLS Then
+        If LenB(SkillsNames(skillId)) <> 0 Then Fields(0) = SkillsNames(skillId)
+    End If
 End Sub
 
 ' Manejar el nombre del NPC para los casos especiales

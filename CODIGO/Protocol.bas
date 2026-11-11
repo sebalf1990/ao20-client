@@ -5330,7 +5330,7 @@ Private Sub HandleQuestDetails()
     ' Plan 04.001: requisito de profesion al final del paquete (0 = sin requisito).
     tmpByte = Reader.ReadInt8
     If tmpByte >= 17 And tmpByte <= 23 Then
-        requirements = requirements & "Profesion: " & SkillsNames(tmpByte) & vbCrLf
+        requirements = requirements & JsonLanguage.Item("MENSAJE_QUEST_PROFESION") & ": " & SkillsNames(tmpByte) & vbCrLf
     End If
 
     If Len(requirements) > 0 Then
