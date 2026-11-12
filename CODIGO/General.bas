@@ -865,12 +865,15 @@ Sub Main()
     #End If
     Call initPacketControl
     Call SetNpcsRenderText
+    ' Windows_Temp_Dir must be set BEFORE cargarTutoriales: with Compresion = 1 the tutorials are extracted to it.
+    ' Loaded with an empty temp dir the tutorial array stayed undimensioned, so the new-player tutorial never
+    ' showed and RequestSkills died on tutorial(4) (the skills window never opened) in release builds only.
+    Windows_Temp_Dir = General_Get_Temp_Dir
     Call cargarTutoriales
     Call InitializeEffectArrays
     SessionOpened = False
     Call Load(frmConnect)
     Call Load(FrmLogear)
-    Windows_Temp_Dir = General_Get_Temp_Dir
     Call InicializarNombres
     Call InitializeInventory
     Call Init_TileEngine
