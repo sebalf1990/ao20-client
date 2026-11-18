@@ -160,6 +160,13 @@ Begin VB.Form FrmLogear
       Top             =   3030
       Width           =   1980
    End
+   Begin VB.Image imgDiscord 
+      Height          =   480
+      Left            =   4230
+      Stretch         =   -1  'True
+      Top             =   450
+      Width           =   480
+   End
    Begin VB.Label lblRecuperarPassword 
       AutoSize        =   -1  'True
       BackStyle       =   0  'Transparent
@@ -344,6 +351,7 @@ Private Sub Form_Load()
     
     Me.PasswordTxt.visible = True
     Call loadButtons
+    Call SetupDiscordIcon
     Call SetActiveServer(txtIp.text, txtPort.text)
     lblIp.Caption = JsonLanguage.Item("MENSAJE_SERVIDOR") ' Servidor:
     lblPort.Caption = JsonLanguage.Item("MENSAJE_PUERTO") ' Puerto
@@ -360,6 +368,28 @@ Private Sub loadButtons()
     Call cBotonSalir.Initialize(cmdSalir, "boton-salir-default.bmp", "boton-salir-over.bmp", "boton-salir-off.bmp", Me)
     Call cBotonCuenta.Initialize(cmdCuenta, "boton-cuenta-default.bmp", "boton-cuenta-over.bmp", "boton-cuenta-off.bmp", Me)
     Call cBotonIngresar.Initialize(cmdIngresar, "boton-ingresar-default.bmp", "boton-ingresar-over.bmp", "boton-ingresar-off.bmp", Me)
+End Sub
+
+' Icono de Discord de la ventana de login. El rectangulo sale de las constantes DISCORD_ICON_* (Declares.bas):
+' el control es a la vez el dibujo, la zona de clic y la zona del tooltip, asi que no se pueden desalinear.
+Private Sub SetupDiscordIcon()
+    On Error GoTo SetupDiscordIcon_Err
+    imgDiscord.Move DISCORD_ICON_X, DISCORD_ICON_Y, DISCORD_ICON_W, DISCORD_ICON_H
+    Set imgDiscord.Picture = LoadInterface("discord-logo.bmp", False)
+    imgDiscord.ToolTipText = JsonLanguage.Item("TOOLTIP_DISCORD")
+    Exit Sub
+SetupDiscordIcon_Err:
+    Call RegistrarError(Err.Number, Err.Description, "FrmLogear.SetupDiscordIcon", Erl)
+    Resume Next
+End Sub
+
+Private Sub imgDiscord_Click()
+    On Error GoTo imgDiscord_Click_Err
+    Call ShellExecute(Me.hWnd, "open", DISCORD_INVITE_URL, "", "", 1)
+    Exit Sub
+imgDiscord_Click_Err:
+    Call RegistrarError(Err.Number, Err.Description, "FrmLogear.imgDiscord_Click", Erl)
+    Resume Next
 End Sub
 
 Private Sub cmdSalir_Click()

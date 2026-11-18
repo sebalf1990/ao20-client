@@ -1214,6 +1214,16 @@ Public Declare Function ShellExecute _
 ' inconveniente de tener dos dominios.
 Public Const WEB_URL_ACCOUNT_REGISTER As String = "https://nuevaeticaao.com/registro"
 Public Const WEB_URL_PASSWORD_RECOVER As String = "https://nuevaeticaao.com/recuperar"
+' Reporte de bugs (plan release-apertura E1): lo abre el boton de FrmGmAyuda.
+Public Const WEB_URL_BUG_REPORT As String = "https://nuevaeticaao.com/reportar-bug"
+' Discord de la comunidad: invitacion y rectangulo (en pixeles, relativo a FrmLogear) del icono de la
+' ventana de login. FrmLogear.Form_Load coloca el control imgDiscord con estas constantes: dibujo, zona de
+' clic y tooltip son el mismo rectangulo. Lo verifica d69_verify.py.
+Public Const DISCORD_INVITE_URL As String = "https://discord.gg/VYWVuduTdY"
+Public Const DISCORD_ICON_X As Long = 282
+Public Const DISCORD_ICON_Y As Long = 30
+Public Const DISCORD_ICON_W As Long = 32
+Public Const DISCORD_ICON_H As Long = 32
 
 'Lista de cabezas
 Public Type tIndiceCabeza
