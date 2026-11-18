@@ -1480,9 +1480,9 @@ Private Function ViewportNeighbor_MapPath(ByVal ResourceMap As Integer) As Strin
     ' (Recursos.bas) extrae el mapa actual al temp; los vecinos hay que extraerlos aca.
     Dim fileName As String
     fileName = "mapa" & ResourceMap & ".csm"
-    If LenB(Dir$(Windows_Temp_Dir & fileName)) = 0 Then
-        Call Extract_File(Maps, App.path & "\..\Recursos\OUTPUT\", fileName, Windows_Temp_Dir, ResourcesPassword, False)
-    End If
+    ' Siempre se extrae: Extract_File borra el destino antes, asi que nunca se reusa un .csm viejo del temp
+    ' (antes se salteaba la extraccion si ya habia uno, aunque fuera de una corrida anterior).
+    Call Extract_File(Maps, App.path & "\..\Recursos\OUTPUT\", fileName, Windows_Temp_Dir, ResourcesPassword, False)
     ViewportNeighbor_MapPath = Windows_Temp_Dir & fileName
 #Else
     ViewportNeighbor_MapPath = App.path & "\..\Recursos\Mapas\mapa" & ResourceMap & ".csm"
