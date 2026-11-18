@@ -15,14 +15,13 @@ Begin VB.Form FrmGmAyuda
    ShowInTaskbar   =   0   'False
    StartUpPosition =   1  'CenterOwner
    Begin VB.CommandButton cmdButtonEntrarForo 
-      Caption         =   "Reportar bug en foro [Sugerido]"
-      Height          =   495
+      Caption         =   "Reportar bug (web)"
+      Height          =   450
       Left            =   5280
       MaskColor       =   &H00404080&
       TabIndex        =   8
       Top             =   840
-      Visible         =   0   'False
-      Width           =   1695
+      Width           =   1560
    End
    Begin VB.OptionButton optConsulta 
       Caption         =   "Consulta regular"
@@ -282,11 +281,21 @@ Private Sub cmdCerrar_Click()
     Unload Me
 End Sub
 
+Private Sub cmdButtonEntrarForo_Click()
+    On Error GoTo cmdButtonEntrarForo_Click_Err
+    Call ShellExecute(Me.hWnd, "open", WEB_URL_BUG_REPORT, "", "", 1)
+    Exit Sub
+cmdButtonEntrarForo_Click_Err:
+    Call RegistrarError(Err.Number, Err.Description, "FrmGmAyuda.cmdButtonEntrarForo_Click", Erl)
+    Resume Next
+End Sub
+
 Private Sub Form_Load()
     Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     On Error GoTo Form_Load_Err
     'Call FormParser.Parse_Form(Me)
     Me.Picture = LoadInterface("ventanagm.bmp")
+    cmdButtonEntrarForo.Caption = JsonLanguage.Item("BOTON_REPORTAR_BUG_WEB")
     Call loadButtons
     Exit Sub
 Form_Load_Err:

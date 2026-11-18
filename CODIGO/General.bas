@@ -1175,6 +1175,7 @@ Public Sub CloseClient()
     Call UnloadAntiCheat
     Call PrevInstance.ReleaseInstance
     ao20audio.StopAllPlayback
+    Call Cleanup_Extracted_Temp_Files
     EngineRun = False
     Call General_Set_Mouse_Speed(SensibilidadMouseOriginal)
     Call Resolution.ResetResolution

@@ -50,6 +50,8 @@ Attribute VB_Name = "modCompression"
 ' Juan Martín Sotuyo Dodero (juansotuyo@hotmail.com) - 10/13/2004
 '   - First Release
 Option Explicit
+' Archivos que Extract_File dejo en la carpeta temporal en esta corrida; se borran al cerrar el cliente.
+Private ExtractedTempFiles As Collection
 Private Declare Function GetDiskFreeSpace _
                 Lib "kernel32" _
                 Alias "GetDiskFreeSpaceExA" (ByVal lpRootPathName As String, _
@@ -497,6 +499,48 @@ errhandler:
     Erase InfoHead
 End Function
 
+' Borra el destino de una extraccion ANTES de escribirlo (plan release-apertura E1). Open For Binary no trunca:
+' un archivo viejo mas largo dejaba basura al final, y si la extraccion fallaba se terminaba leyendo el archivo
+' viejo (un remotes.ini vencido conecto a un server del oficial). Falla cerrado: True solo si el archivo ya no existe.
+Private Function Temp_Delete_Before_Extract(ByVal destPath As String) As Boolean
+    Dim attrs As Long
+    On Error Resume Next
+    attrs = GetAttr(destPath)
+    If Err.Number = 0 Then
+        Call SetAttr(destPath, vbNormal)
+        Kill destPath
+    End If
+    Err.Clear
+    attrs = GetAttr(destPath)
+    Temp_Delete_Before_Extract = (Err.Number <> 0)
+    Err.Clear
+End Function
+
+Private Sub Temp_Track_Extracted(ByVal filePath As String)
+    On Error Resume Next
+    If ExtractedTempFiles Is Nothing Then Set ExtractedTempFiles = New Collection
+    ExtractedTempFiles.Add filePath, LCase$(filePath)
+    Err.Clear
+End Sub
+
+' Borra de la carpeta temporal todo lo que Extract_File extrajo (tutoriales.ini, particles.ind, ProjectileDef.dat,
+' Effects.ini, PatchNotes.dat, crafteo.ini, remotes.ini, etc.). Lo llama CloseClient. Si el cliente se cae, lo que
+' quede lo borra la proxima extraccion del mismo archivo (Temp_Delete_Before_Extract).
+Public Sub Cleanup_Extracted_Temp_Files()
+    Dim i As Long
+    Dim attrs As Long
+    On Error Resume Next
+    If ExtractedTempFiles Is Nothing Then Exit Sub
+    For i = 1 To ExtractedTempFiles.Count
+        Err.Clear
+        attrs = GetAttr(ExtractedTempFiles.Item(i))
+        ' Delete_File sobre un archivo inexistente lo crea vacio: chequear antes.
+        If Err.Number = 0 Then Call Delete_File(ExtractedTempFiles.Item(i))
+    Next i
+    Err.Clear
+    Set ExtractedTempFiles = New Collection
+End Sub
+
 Public Function Extract_File(ByVal file_type As resource_file_type, _
                              ByVal resource_path As String, _
                              ByVal file_name As String, _
@@ -511,6 +555,8 @@ Public Function Extract_File(ByVal file_type As resource_file_type, _
     Dim Handle         As Integer
     'Set up the error handler
     On Local Error GoTo errhandler
+    ' Primero se borra el destino: nunca se lee un archivo viejo de una corrida anterior.
+    If Not Temp_Delete_Before_Extract(OutputFilePath & file_name) Then Exit Function
     Select Case file_type
         Case Graphics
             If UseOutputFolder Then
@@ -598,6 +644,7 @@ Public Function Extract_File(ByVal file_type As resource_file_type, _
     Put Handle, 1, SourceData
     Close Handle
     Erase SourceData
+    Call Temp_Track_Extracted(OutputFilePath & RTrim$(InfoHead.strFileName))
     Extract_File = True
     Exit Function
 errhandler:

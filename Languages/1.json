@@ -786,5 +786,7 @@
     "MSG_CONFIRM_EMPTY_RENAME": "¿Estás seguro que deseas eliminar el alias de tu personaje?",
     "MSG_ALIAS_PRESENT": "No puedes transferir ni borrar un personaje que tenga alias. Por favor, elimina el alias antes de realizar esta acción.",
     "MSG_ADD_TO_ALBUM_COLLECTION" : "Agregar a la colección",
-    "CAPTION_CARD_VIEWER" : "Visor de cartas"
+    "CAPTION_CARD_VIEWER" : "Visor de cartas",
+    "TOOLTIP_DISCORD" : "Discord de la comunidad",
+    "BOTON_REPORTAR_BUG_WEB" : "Reportar bug (web)"
 }
