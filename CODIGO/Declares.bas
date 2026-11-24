@@ -104,7 +104,7 @@ End Enum
 Public DeltaAntorcha                    As Double
 Public credits_shopAO20                 As Long
 Public CantNpcWorld                     As Integer
-Public NpcWorlds(1 To 2000)             As Byte
+Public NpcWorlds()                      As Byte
 Public ViajarInterface                  As Byte
 Public FormParser                       As clsCursor
 Public HoraMundo                        As Long

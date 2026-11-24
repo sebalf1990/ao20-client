@@ -944,8 +944,8 @@ Private Sub cboLuces_Click()
 End Sub
 
 Private Sub cbTutorial_Click()
-    If cbTutorial.ListIndex <> MostrarTutorial Then
-        MostrarTutorial = cbTutorial.ListIndex
+    If (cbTutorial.ListIndex <> 0) <> MostrarTutorial Then
+        MostrarTutorial = (cbTutorial.ListIndex <> 0)
         Dim i As Long
         Dim activoValue As Long
         activoValue = IIf(MostrarTutorial, 1, 0)
