@@ -1687,6 +1687,20 @@ Private Sub StartCustomMap(ByVal mapType As Byte, ByVal Name As String, ByRef ar
             LobbyInfo.MinLevel = arguments(2)
             LobbyInfo.MaxLevel = arguments(3)
             LobbyInfo.MinPlayers = 2
+            ' Optional 5th token: inscription fee (Long). eStartEvent carries it for every scenario
+            ' type and the server applies it when the lobby is created. Nested Ifs: VB6 does not
+            ' short-circuit And.
+            If argCount >= 5 Then
+                If Not ValidNumber(arguments(4), eNumber_Types.ent_Long) Then
+                    Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_NUMERO_ERROR"))
+                    Exit Sub
+                End If
+                If val(arguments(4)) < 0 Then
+                    Call ShowConsoleMsg(JsonLanguage.Item("MENSAJE_VALOR_NUMERO_ERROR"))
+                    Exit Sub
+                End If
+                LobbyInfo.InscriptionFee = CLng(val(arguments(4)))
+            End If
             ' Plan 27.001 ola 9 (C.14): el Abordaje (mapType 4 = e_EventType.NavalBattle) se parte en 2
             ' equipos con ModLobby.SetTeamCount, que ABORTA si MaxPlayers es impar. Esta validacion
             ' existia SOLO en FrmTorneo.cmdCrearElAbordaje_Click; el camino por chat no validaba nada.

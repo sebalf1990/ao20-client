@@ -169,6 +169,7 @@
     "MENSAJE_ESPACIO_INSUFICIENTE": "There is not enough space to extract the file!",
     "MENSAJE_SELECCIONAR_OBJETO": "You must select an item from the list.",
     "MENSAJE_NUMERO_PAR_PARTICIPANTES": "Please enter an even number of participants.",
+    "MENSAJE_PARTICIPANTES_RANGO": "The number of participants must be a whole number between 2 and 255.",
     "MENSAJE_NIVEL_MINIMO_ABORDAJE": "Please enter a number between 1 and 47 in the Minimum Boarding Level field.",
     "MENSAJE_NIVEL_MAXIMO_ABORDAJE": "Please enter a number between 1 and 47 in the Maximum Boarding Level field.",
     "MENSAJE_NIVEL_MINIMO_MAYOR_MAXIMO": "The Minimum Boarding Level must be less than the Maximum Boarding Level.",
