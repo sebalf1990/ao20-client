@@ -324,7 +324,7 @@ Begin VB.Form FrmTorneo
          Height          =   285
          Left            =   2760
          TabIndex        =   97
-         Text            =   "1"
+         Text            =   "0"
          Top             =   2400
          Width           =   975
       End
@@ -416,7 +416,7 @@ Begin VB.Form FrmTorneo
          Height          =   285
          Left            =   2760
          TabIndex        =   53
-         Text            =   "1"
+         Text            =   "2"
          Top             =   1440
          Width           =   975
       End
@@ -687,7 +687,7 @@ Begin VB.Form FrmTorneo
          Height          =   285
          Left            =   1200
          TabIndex        =   101
-         Text            =   "1"
+         Text            =   "0"
          Top             =   2280
          Width           =   975
       End
@@ -729,7 +729,7 @@ Begin VB.Form FrmTorneo
          Height          =   285
          Left            =   1200
          TabIndex        =   49
-         Text            =   "1"
+         Text            =   "2"
          Top             =   1680
          Width           =   975
       End
@@ -1200,6 +1200,10 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 
+Private Const MIN_EVENT_PLAYERS As Long = 2
+Private Const MAX_EVENT_PLAYERS As Long = 255
+Private Const MAX_INSCRIPTION_FEE As Double = 100000
+
 Private Sub Form_Load()
     Call ModMenuTransparency.MenuTransparency_ApplyToForm(Me.hWnd)
     ' Plan 04.001: con profesiones activas la clase Trabajador no existe y el server
@@ -1306,8 +1310,57 @@ Private Sub cmdConfigurarE_Click()
     End Select
 End Sub
 
+' Reads a whole number from a text box. Val() returns a Double, so a huge or malformed
+' text can never overflow an Integer here (the old Change handler used CInt and crashed).
+Private Function TryReadWhole(ByVal source As TextBox, ByRef amount As Double) As Boolean
+    amount = 0
+    If Not IsNumeric(source.text) Then Exit Function
+    amount = val(source.text)
+    If amount <> Int(amount) Then Exit Function
+    TryReadWhole = True
+End Function
+
+' Max players of an event: whole number between MIN_EVENT_PLAYERS (server minimum) and a Byte.
+Private Function ReadEventPlayers(ByVal source As TextBox, ByRef players As Long) As Boolean
+    Dim amount As Double
+    If TryReadWhole(source, amount) Then
+        If amount >= MIN_EVENT_PLAYERS And amount <= MAX_EVENT_PLAYERS Then
+            players = CLng(amount)
+            ReadEventPlayers = True
+            Exit Function
+        End If
+    End If
+    MsgBox JsonLanguage.Item("MENSAJE_PARTICIPANTES_RANGO"), vbExclamation, JsonLanguage.Item("MENSAJE_TITULO_ERROR")
+End Function
+
+' Inscription fee: empty means free; otherwise a whole number from 0 to MAX_INSCRIPTION_FEE.
+Private Function ReadInscriptionFee(ByVal source As TextBox, ByRef fee As Long) As Boolean
+    Dim amount As Double
+    fee = 0
+    If Len(Trim$(source.text)) = 0 Then
+        ReadInscriptionFee = True
+        Exit Function
+    End If
+    If Not TryReadWhole(source, amount) Or amount < 0 Then
+        MsgBox JsonLanguage.Item("MENSAJE_VALOR_NUMERO_ERROR"), vbExclamation, JsonLanguage.Item("MENSAJE_TITULO_ERROR")
+        Exit Function
+    End If
+    If amount > MAX_INSCRIPTION_FEE Then
+        MsgBox JsonLanguage.Item("MENSAJE_VALOR_MAXIMO_ERROR"), vbExclamation, JsonLanguage.Item("MENSAJE_TITULO_ERROR")
+        Exit Function
+    End If
+    fee = CLng(amount)
+    ReadInscriptionFee = True
+End Function
+
 Private Sub cmdCrearEl_Click()
-    Call ParseUserCommand("/crearevento caceria " & txtPlayer & " " & txtNivelMinino & " " & txtNivelmax)
+    Dim players As Long
+    Dim fee As Long
+    If Not ReadEventPlayers(txtPlayer, players) Then Exit Sub
+    If Not ReadInscriptionFee(txtValorGarrote, fee) Then Exit Sub
+    ' The level range of this frame is txtNivelmaximo(0); txtNivelmax belongs to the CTF frame.
+    ' The fee travels inside the creation command (5th token): eStartEvent already carries it.
+    Call ParseUserCommand("/crearevento caceria " & players & " " & txtNivelMinino.text & " " & txtNivelmaximo(0).text & " " & fee)
 End Sub
 
 Private Sub cmdCrearElAbordaje_Click()
@@ -1337,11 +1390,15 @@ End Sub
 
 Private Sub cmdCrearEldeath_Click()
     ' Verificar que txtMinlvldeath esté entre 1 y 47 y no sea mayor que txtMaxlvldeath
+    Dim players As Long
+    Dim fee As Long
     If IsNumeric(txtMinlvldeath.text) And CInt(txtMinlvldeath.text) >= 1 And CInt(txtMinlvldeath.text) <= 47 Then
         ' Verificar que txtMaxlvldeath esté entre 1 y 47 y no sea menor que txtMinlvldeath
         If IsNumeric(txtMaxlvldeath.text) And CInt(txtMaxlvldeath.text) >= 1 And CInt(txtMaxlvldeath.text) <= 47 And CInt(txtMaxlvldeath.text) >= CInt(txtMinlvldeath.text) Then
             ' Llamar a la función ParseUserCommand con los valores válidos
-            Call ParseUserCommand("/crearevento deathmatch " & txtPlayerDeath.text & " " & txtMinlvldeath.text & " " & txtMaxlvldeath.text)
+            If Not ReadEventPlayers(txtPlayerDeath, players) Then Exit Sub
+            If Not ReadInscriptionFee(txtParti, fee) Then Exit Sub
+            Call ParseUserCommand("/crearevento deathmatch " & players & " " & txtMinlvldeath.text & " " & txtMaxlvldeath.text & " " & fee)
         Else
             ' Mostrar un mensaje de error si txtMaxlvldeath no cumple con las condiciones
             MsgBox JsonLanguage.Item("MENSAJE_NIVEL_MAXIMO_ERROR"), vbExclamation, JsonLanguage.Item("MENSAJE_TITULO_ERROR")
@@ -1392,27 +1449,7 @@ Private Sub Command5_Click()
     FrmTorneo.FraTorneosY.visible = True
 End Sub
 
-Private Sub txtEquipo_Change()
-    frmDebug.add_text_tracebox txtEquipo
-    Call ParseUserCommand("/configlobby setteamsize " & txtEquipo)
-End Sub
-
-Private Sub txtParti_Change()
-    Call ParseUserCommand("/configlobby setprice " & txtParti)
-End Sub
-
-Private Sub txtValorGarrote_Change()
-    Dim Valor As Integer
-    If Not IsNumeric(txtValorGarrote.text) Then
-        MsgBox JsonLanguage.Item("MENSAJE_VALOR_NUMERO_ERROR"), vbExclamation, JsonLanguage.Item("MENSAJE_TITULO_ERROR")
-        txtValorGarrote.text = ""
-        Exit Sub
-    End If
-    Valor = CInt(txtValorGarrote.text)
-    If Valor > 100000 Then
-        MsgBox JsonLanguage.Item("MENSAJE_VALOR_MAXIMO_ERROR"), vbExclamation, JsonLanguage.Item("MENSAJE_TITULO_ERROR")
-        txtValorGarrote.text = ""
-        Exit Sub
-    End If
-    Call ParseUserCommand("/configlobby setprice " & Valor)
-End Sub
+' The txtEquipo / txtParti / txtValorGarrote Change handlers were removed: they sent
+' /configlobby setteamsize|setprice on every keystroke while no lobby existed yet (the server
+' answered "There is no active event"), and txtValorGarrote used CInt, which overflows from 32768.
+' The fee is now read when the event is created (see ReadInscriptionFee).

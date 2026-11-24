@@ -169,6 +169,7 @@
     "MENSAJE_ESPACIO_INSUFICIENTE": "¡No hay espacio suficiente para extraer el archivo!",
     "MENSAJE_SELECCIONAR_OBJETO": "Debes seleccionar un objeto de la lista.",
     "MENSAJE_NUMERO_PAR_PARTICIPANTES": "Por favor, ingrese un número par en cantidad de participantes.",
+    "MENSAJE_PARTICIPANTES_RANGO": "La cantidad de participantes debe ser un numero entero entre 2 y 255.",
     "MENSAJE_NIVEL_MINIMO_ABORDAJE": "Por favor, ingrese un número entre 1 y 47 en el campo de Nivel Mínimo de Abordaje.",
     "MENSAJE_NIVEL_MAXIMO_ABORDAJE": "Por favor, ingrese un número entre 1 y 47 en el campo de Nivel Máximo de Abordaje.",
     "MENSAJE_NIVEL_MINIMO_MAYOR_MAXIMO": "El Nivel Mínimo de Abordaje debe ser menor que el Nivel Máximo de Abordaje.",
