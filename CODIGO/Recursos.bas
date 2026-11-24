@@ -771,11 +771,12 @@ Sub CargarDatosMapa(ByVal map As Integer)
                 ReDim NPCs(1 To .NumeroNPCs)
                 Get #fh, , NPCs
                 Dim c As Long
-                For c = 1 To UBound(NpcWorlds)
-                    NpcWorlds(c) = 0
-                Next c
+                ReDim NpcWorlds(0 To UBound(NpcData)) As Byte
                 ' frmMapaGrande.ListView1.ListItems.Clear
                 For i = 1 To .NumeroNPCs
+                    If NPCs(i).NpcIndex < 1 Or NPCs(i).NpcIndex > UBound(NpcData) Then
+                        GoTo cont
+                    End If
                     If NpcData(NPCs(i).NpcIndex).NoMapInfo = 1 Then
                         GoTo cont
                     End If
