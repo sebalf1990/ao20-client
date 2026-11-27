@@ -347,6 +347,9 @@ Private Sub Form_Load()
     Else
         cmbSteamBranch.ListIndex = 1
     End If
+    ' Steam branch selector (Hardcore/Battleserver) comes from upstream; this fork has no Steam branches.
+    ' Picking another branch closes the client, so keep it hidden.
+    cmbSteamBranch.visible = False
     
     
     Me.PasswordTxt.visible = True
